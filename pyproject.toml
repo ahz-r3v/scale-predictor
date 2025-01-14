@@ -1,0 +1,15 @@
+[tool.poetry]
+name = "scale-predictor"
+version = "0.1.0"
+description = "A predictor to estimate how many instances to scale up based on historical invocation trace."
+authors = ["Boxi boxi001@e.ntu.edu.sg"]
+
+[tool.poetry.dependencies]
+python = "^3.12"
+numpy = "^2.2.1"
+pandas = "^2.2.3"
+scikit-learn = "^1.5.2" 
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
