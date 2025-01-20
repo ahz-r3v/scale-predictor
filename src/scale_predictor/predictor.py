@@ -1,4 +1,5 @@
 import numpy as np
+import math
 from typing import Dict, List
 from sklearn.linear_model import LinearRegression
 
@@ -16,32 +17,35 @@ class ScalePredictor:
         clean():
             Clean or reset the current predictive model.
     """
-    WINDOW_SIZE = 60
 
     def __init__(self):
         self.models: Dict[str, LinearRegression] = {}
         self.trained: bool = False
+        self.window_size: int = 0
 
     def train(self, dataset: Dict[str, List[int]], window_size: int):
         """
         Train a linear regression model for each function based on its historical data.
+        For each second we predict next second.
         
         Args:
             dataset: 
                 A dict: {functionName: [invocation data per sec, ...]}
             window_size:
-                The window size (in seconds) you'd like to focus on, 
-                or could be used for feature extraction. 
+                The window size (normally 60 in practice) indicates the sequence
+                length of feature vector.
         """
+        self.window_size = window_size
         for function_name, call_list in dataset.items():
             if len(call_list) < 2:
                 # If not enough data, skip and use default value.
                 continue
 
-            # X：[0, 1, 2, ..., n-1]
-            # y：invocations
-            X = np.arange(len(call_list)).reshape(-1, 1)  # shape=(n,1)
-            y = np.array(call_list, dtype=float)
+            X, y = [], []
+            # Generate training features.
+            for i in range(len(call_list) - window_size):
+                X.append(call_list[i : i + window_size])
+                y.append(call_list[i + window_size])
 
             # Linear Regression.
             model = LinearRegression()
@@ -51,7 +55,7 @@ class ScalePredictor:
 
         self.trained = len(self.models) > 0
 
-    def predict(self, function_name: str, window: List[int]) -> int:
+    def predict(self, function_name: str, window: List[int], index: int) -> int:
         """
         Predict how many instances are needed for a given function based on
         the most recent usage window (e.g., last 60 seconds).
@@ -71,23 +75,15 @@ class ScalePredictor:
 
         model = self.models[function_name]
 
-        # Next time is always WINDOWSIZE (second).
-        next_time_index = len(window)
+        # Rearrange the windows according to the index to ensure order.
+        # Spin and split window.
+        sequenced_window = (window[index+1:] + window[:index+1])[-self.window_size:]
 
-        # 取窗口的平均值(或者其它统计信息)，可以作为某种“增量”来修正
-        current_avg = np.mean(window) if len(window) > 0 else 0.0
+        # Predict next second.
+        predicted_next = model.predict([sequenced_window])[0]
 
-        # 线性回归预测下一个时刻调用量
-        predicted_next = model.predict([[next_time_index]])[0]
-
-        # 简单合并：假设当前窗口平均值 + 线性回归预测值融合
-        # 这里仅作演示，不是严格的算法
-        final_estimated_calls = (predicted_next + current_avg) / 2.0
-
-        # 假设每个实例可以承载 10 次调用（举例而已）
-        capacity_per_instance = 1
-        needed_instances = max(1, int(np.ceil(final_estimated_calls / capacity_per_instance)))
-        return needed_instances
+        # Round up to an integer.
+        return math.ceil(predicted_next)
 
     def clear(self):
         """

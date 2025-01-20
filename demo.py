@@ -10,12 +10,12 @@ if __name__ == "__main__":
     # Training.
     predictor.train(dataset, window_size=5)
 
-    current_window_a = [35, 32, 31, 40, 38, 36]
-    needed_a = predictor.predict("funcA", current_window_a)
+    current_window_a = [35, 32, 31, 40, 50, 36, 3]
+    needed_a = predictor.predict("funcA", current_window_a, 6)
     print(f"Predicted needed instances for funcA = {needed_a}")
 
-    current_window_b = [9, 12, 14, 8, 11]
-    needed_b = predictor.predict("funcB", current_window_b)
+    current_window_b = [9, 12, 14, 8, 11, 99]
+    needed_b = predictor.predict("funcB", current_window_b, 5)
     print(f"Predicted needed instances for funcB = {needed_b}")
 
     predictor.clear()
