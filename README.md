@@ -5,6 +5,6 @@ A predictor to estimate how many instances to scale up based on historical invoc
 ## Usage
 
 ``` bash
-pip install requirements.txt
+pip install -r requirements.txt
 python3 demo.py
 ```
