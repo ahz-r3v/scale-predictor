@@ -16,6 +16,7 @@ class ScalePredictor:
         clean():
             Clean or reset the current predictive model.
     """
+    WINDOW_SIZE = 60
 
     def __init__(self):
         self.models: Dict[str, LinearRegression] = {}
@@ -32,22 +33,20 @@ class ScalePredictor:
                 The window size (in seconds) you'd like to focus on, 
                 or could be used for feature extraction. 
         """
-        # 对每个 functionName 建立一个线性回归模型
         for function_name, call_list in dataset.items():
             if len(call_list) < 2:
-                # 如果数据量太少，就跳过或用默认值
+                # If not enough data, skip and use default value.
                 continue
 
-            # X：时间序列下标 [0, 1, 2, ..., n-1]
-            # y：对应时刻的调用量
+            # X：[0, 1, 2, ..., n-1]
+            # y：invocations
             X = np.arange(len(call_list)).reshape(-1, 1)  # shape=(n,1)
             y = np.array(call_list, dtype=float)
 
-            # 训练线性回归模型
+            # Linear Regression.
             model = LinearRegression()
             model.fit(X, y)
 
-            # 保存到字典
             self.models[function_name] = model
 
         self.trained = len(self.models) > 0
@@ -70,28 +69,10 @@ class ScalePredictor:
                 "Make sure to call train() first and pass correct function_name."
             )
 
-        # 这里演示用：1) 先用线性回归模型预测“下一个时刻”的调用量，
-        #            2) 再基于一个简单规则来计算需要的实例数量
-
         model = self.models[function_name]
 
-        # 当前时刻可以理解为已有的历史数据长度+1 (或其它方式)
-        # 这里假设我们过去的数据长度 + 1 作为下一个时刻
-        # 你也可以根据实际需要，提取更多特征或多步预测
-        historical_length = model.n_features_in_  # 这其实是 1
-        # 正确拿到训练时的数据行数:
-        # sklearn没有内置属性直接给出样本数，可自己存一下或推断:
-        # 这里假设 model.coef_, model.intercept_ 都已经在 fit 后可用
-        # 也可以在 train() 里保存 call_list 长度:
-        #    self.sample_count[function_name] = len(call_list)
-        # 然后这里 next_time = self.sample_count[function_name]
-        # 为简单起见，下述写法做演示:
-
-        # 先随意假设下一个时刻的 x 值:
-        next_time_index = 9999  # 仅做示例，需要你在 train() 存下真实的 length
-        # 其实最好的方式: 在 train() 时记录 call_list 的长度:
-        # self.data_length = {func: len(call_list), ...}
-        # next_time_index = self.data_length[function_name]
+        # Next time is always WINDOWSIZE (second).
+        next_time_index = len(window)
 
         # 取窗口的平均值(或者其它统计信息)，可以作为某种“增量”来修正
         current_avg = np.mean(window) if len(window) > 0 else 0.0
