@@ -32,13 +32,13 @@ class ScalePredictor:
             dataset: 
                 A dict: {functionName: [invocation data per sec, ...]}
             window_size:
-                The window size (normally 60 in practice) indicates the sequence
+                The window size, normally 60 in practice, indicates the sequence
                 length of feature vector.
         """
         self.window_size = window_size
         for function_name, call_list in dataset.items():
             if len(call_list) < 2:
-                # If not enough data, skip and use default value.
+                # If not enough data, skip.
                 continue
 
             X, y = [], []
@@ -65,12 +65,11 @@ class ScalePredictor:
             window (List[int]): Invocation data in the last minute (or any timespan).
         
         Returns:
-            int: The number of instances needed (a simple example logic).
+            int: The number of instances needed.
         """
         if not self.trained or function_name not in self.models or self.window_size == 0:
             raise RuntimeError(
                 f"No trained model found for function '{function_name}'. "
-                "Make sure to call train() first and pass correct function_name."
             )
 
         model = self.models[function_name]
@@ -90,7 +89,7 @@ class ScalePredictor:
 
     def clear(self):
         """
-        Clean or reset all trained models, so we can retrain from scratch.
+        Clean all trained models.
         """
         self.models.clear()
         self.trained = False
