@@ -15,7 +15,7 @@ if __name__ == "__main__":
     print(f"Predicted needed instances for funcA = {needed_a}")
 
     current_window_b = [9, 12, 14, 8, 11, 99]
-    needed_b = predictor.predict("funcB", current_window_b, 5)
+    needed_b = predictor.predict("funcB", current_window_b, 1)
     print(f"Predicted needed instances for funcB = {needed_b}")
 
     predictor.clear()

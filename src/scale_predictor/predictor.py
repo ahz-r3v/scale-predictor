@@ -12,7 +12,7 @@ class ScalePredictor:
     Methods:
         train(dataset, window_size):
             Train a predictive model using historical data.
-        predict(window) -> int:
+        predict(window, index) -> int:
             Predict the number of instances needed based on current usage window.
         clean():
             Clean or reset the current predictive model.
@@ -67,7 +67,7 @@ class ScalePredictor:
         Returns:
             int: The number of instances needed (a simple example logic).
         """
-        if not self.trained or function_name not in self.models:
+        if not self.trained or function_name not in self.models or self.window_size == 0:
             raise RuntimeError(
                 f"No trained model found for function '{function_name}'. "
                 "Make sure to call train() first and pass correct function_name."
@@ -80,9 +80,12 @@ class ScalePredictor:
         sequenced_window = (window[index+1:] + window[:index+1])[-self.window_size:]
 
         # Predict next second.
-        predicted_next = model.predict([sequenced_window])[0]
-
         # Round up to an integer.
+        predicted_next = math.ceil(model.predict([sequenced_window])[0])
+
+        if predicted_next < 0:
+            return 0
+        
         return math.ceil(predicted_next)
 
     def clear(self):
@@ -91,3 +94,4 @@ class ScalePredictor:
         """
         self.models.clear()
         self.trained = False
+        self.window_size = 0
