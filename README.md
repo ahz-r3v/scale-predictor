@@ -8,3 +8,4 @@ A predictor to estimate how many instances to scale up based on historical invoc
 pip install -r requirements.txt
 python3 demo.py
 ```
+grpc server should be started on localhost:50051
