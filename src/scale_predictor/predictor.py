@@ -2,6 +2,8 @@ import numpy as np
 import math
 from typing import Dict, List
 from sklearn.linear_model import LinearRegression
+import joblib
+import os
 
 class ScalePredictor:
     """
@@ -94,3 +96,44 @@ class ScalePredictor:
         self.models.clear()
         self.trained = False
         self.window_size = 0
+
+    def export(self, file_path: str):
+        """
+        Export the current models and state to a file.
+
+        Args:
+            file_path (str): The path to the file where the models will be saved.
+        """
+        # Ensure the directory exists
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+
+        # Prepare the data to serialize
+        data = {
+            'models': self.models,
+            'trained': self.trained,
+            'window_size': self.window_size
+        }
+
+        # Use joblib to serialize the data
+        joblib.dump(data, file_path)
+        print(f"ScalePredictor state exported to {file_path}")
+
+    def load(self, file_path: str):
+        """
+        Load models and state from a file.
+
+        Args:
+            file_path (str): The path to the file from which to load the models.
+        """
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"No such file: '{file_path}'")
+
+        # Load the data using joblib
+        data = joblib.load(file_path)
+
+        # Restore the state
+        self.models = data.get('models', {})
+        self.trained = data.get('trained', False)
+        self.window_size = data.get('window_size', 0)
+
+        print(f"ScalePredictor state loaded from {file_path}")
