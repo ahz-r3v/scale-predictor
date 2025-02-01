@@ -99,7 +99,8 @@ class TestScalePredictorService(unittest.TestCase):
         Test that Predict raises an error when the predictor has not been trained.
         """
         # Attempt to predict without training
-        window = [1, 2]
+        self.service.predictor.clear()
+        window = [1, 2, 3]
         index = 1
         request = scale_predictor_pb2.PredictRequest(
             function_name="funcA",
