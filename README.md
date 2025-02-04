@@ -16,7 +16,7 @@ grpc server will be started on localhost:50051
 You can directly pull and run scale-predictor from docker hub using the following command:
 ``` bash
 docker pull zhaidea/scale-predictor:latest
-docker run -p 50051:50051 myusername/scale-predictor
+docker run -p 50051:50051 zhaidea/scale-predictor
 ```
 
 or you can build your own patch by running Dockerfile:
