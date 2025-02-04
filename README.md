@@ -19,7 +19,7 @@ docker pull zhaidea/scale-predictor:latest
 docker run -p 50051:50051 zhaidea/scale-predictor
 ```
 
-or you can build your own patch by running Dockerfile:
+or you can build your own image by running Dockerfile:
 ``` bash
 docker build -t scale-predictor .
 docker run -p 50051:50051 scale-predictor
