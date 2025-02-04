@@ -4,6 +4,7 @@ from concurrent import futures
 import time
 import socket
 import math
+import os
 
 
 # Import the generated classes
@@ -28,6 +29,9 @@ class TestScalePredictorService(unittest.TestCase):
         """
         Set up the gRPC server and client before any tests run.
         """
+        # Get env arg
+        debug = os.getenv("PD_DEBUG", default='0')
+
         # Get a free port
         cls.port = get_free_port()
 
@@ -35,7 +39,7 @@ class TestScalePredictorService(unittest.TestCase):
         cls.server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
 
         # Instantiate the service
-        cls.service = ScalePredictorService()
+        cls.service = ScalePredictorService(debug)
 
         # Add the service to the server
         scale_predictor_pb2_grpc.add_ScalePredictorServicer_to_server(

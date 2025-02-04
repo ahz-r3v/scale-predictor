@@ -20,10 +20,11 @@ class ScalePredictor:
             Clean or reset the current predictive model.
     """
 
-    def __init__(self):
+    def __init__(self, debug):
         self.models: Dict[str, LinearRegression] = {}
         self.trained: bool = False
         self.window_size: int = 0
+        self.debug: int = debug
 
     def train(self, dataset: Dict[str, List[int]], window_size: int):
         """
@@ -70,9 +71,12 @@ class ScalePredictor:
             int: The number of instances needed.
         """
         if not self.trained or function_name not in self.models or self.window_size == 0:
-            raise RuntimeError(
-                f"No trained model found for function '{function_name}'. "
-            )
+            if self.debug == "0":
+                raise KeyError(
+                    f"No trained model found for function '{function_name}'. "
+                )
+            else:
+                return 1
 
         model = self.models[function_name]
 
