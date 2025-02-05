@@ -4,6 +4,7 @@ from typing import Dict, List
 from sklearn.linear_model import LinearRegression
 import joblib
 import os
+import logging
 
 class ScalePredictor:
     """
@@ -24,7 +25,8 @@ class ScalePredictor:
         self.models: Dict[str, LinearRegression] = {}
         self.trained: bool = False
         self.window_size: int = 0
-        self.debug: int = debug
+        self.debug = debug
+        self.logger = logging.getLogger(__name__)
 
     def train(self, dataset: Dict[str, List[int]], window_size: int):
         """
@@ -70,12 +72,15 @@ class ScalePredictor:
         Returns:
             int: The number of instances needed.
         """
+        self.logger.debug("predict called.")
         if not self.trained or function_name not in self.models or self.window_size == 0:
             if self.debug == "0":
+                self.logger.error(f"No trained model found for function '{function_name}'. ")
                 raise KeyError(
                     f"No trained model found for function '{function_name}'. "
                 )
             else:
+                self.logger.debug(f"No trained model found for function '{function_name}', but returns 1 in debug mod.")
                 return 1
 
         model = self.models[function_name]
@@ -87,6 +92,9 @@ class ScalePredictor:
         # Predict next second.
         # Round up to an integer.
         predicted_next = math.ceil(model.predict([sequenced_window])[0])
+
+        self.logger.info(f"predicted pod count = {predicted_next}")
+        self.logger.debug("predict returns")
 
         if predicted_next < 0:
             return 0

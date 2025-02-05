@@ -6,7 +6,7 @@ from src.scale_predictor.predictor import ScalePredictor
 
 class TestPredictor(unittest.TestCase):
     def setUp(self):
-        self.predictor = ScalePredictor()
+        self.predictor = ScalePredictor('0')
 
     def test_train_no_data(self):
         """
@@ -81,7 +81,7 @@ class TestPredictor(unittest.TestCase):
         """
         If predict(not_existing_func), should throw an error
         """
-        with self.assertRaises(RuntimeError):
+        with self.assertRaises(KeyError):
             self.predictor.predict("notExistFunc", [1, 2, 3], 2)
 
     def test_predict_unregistered_function(self):
@@ -94,7 +94,7 @@ class TestPredictor(unittest.TestCase):
         window_size = 2
         self.predictor.train(dataset, window_size)
 
-        with self.assertRaises(RuntimeError):
+        with self.assertRaises(KeyError):
             self.predictor.predict("notExistFunc", [1, 2], 1)
 
     def test_predict_negative_result(self):
@@ -165,7 +165,7 @@ class TestPredictor(unittest.TestCase):
             self.predictor.export(export_path)
 
             # Create a new predictor and load the exported state
-            new_predictor = ScalePredictor()
+            new_predictor = ScalePredictor('0')
             new_predictor.load(export_path)
 
             # Verify that the loaded predictor has the same state
