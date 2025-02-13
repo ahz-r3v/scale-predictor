@@ -5,7 +5,7 @@ from sklearn.linear_model import LinearRegression
 import joblib
 import os
 import logging
-from utils import window_average
+from .utils import window_average
 
 class ScalePredictor:
     """
