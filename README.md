@@ -24,3 +24,19 @@ or you can build your own image by running Dockerfile:
 docker build -t scale-predictor .
 docker run -p 50051:50051 scale-predictor
 ```
+
+## Deploy with k8s
+Upload your image:
+``` bash
+docker login -u <your_username> -p <yourpassword>
+docker build -t <username>/scale-predictor:latest .
+docker push <username>/scale-predictor:latest
+
+```
+Modify `zhaidea` in config/predictor.yaml to your username
+On k8s clauster:
+``` bash
+kubectl apply -f config/predictor.yaml -n knative-serving
+kubectl apply -f config/predictor-service.yaml -n knative-serving
+```
+

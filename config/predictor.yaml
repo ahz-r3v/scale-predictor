@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: scale-predictor
+
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: scale-predictor
+  template:
+    metadata:
+      labels:
+        app: scale-predictor
+    spec:
+      containers:
+      - name: scale-predictor-container
+        image: docker.io/zhaidea/scale-predictor
+        ports:
+        - containerPort: 50051 

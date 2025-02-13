@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: scale-predictor-service
+spec:
+  selector:
+    app: scale-predictor  
+  ports:
+    - name: scale-predictor-service
+      port: 50051       
+      targetPort: 50051 
+  type: ClusterIP  
