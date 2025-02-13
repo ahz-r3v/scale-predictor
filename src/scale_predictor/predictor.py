@@ -5,6 +5,7 @@ from sklearn.linear_model import LinearRegression
 import joblib
 import os
 import logging
+from utils import window_average
 
 class ScalePredictor:
     """
@@ -26,6 +27,7 @@ class ScalePredictor:
         self.trained: bool = False
         self.window_size: int = 0
         self.debug = debug
+        self.smoothing_coeff = 0.6
         self.logger = logging.getLogger(__name__)
 
     def train(self, dataset: Dict[str, List[int]], window_size: int):
@@ -75,10 +77,8 @@ class ScalePredictor:
         self.logger.debug("predict called.")
         if not self.trained or function_name not in self.models or self.window_size == 0:
             if self.debug == "0":
-                self.logger.error(f"No trained model found for function '{function_name}'. ")
-                raise KeyError(
-                    f"No trained model found for function '{function_name}'. "
-                )
+                self.logger.warning(f"No trained model found for function '{function_name}', use default model.")
+                predicted_next = window_average(index, window, self.smoothing_coeff)
             else:
                 self.logger.debug(f"No trained model found for function '{function_name}', but returns 1 in debug mod.")
                 return 1
@@ -93,7 +93,7 @@ class ScalePredictor:
         # Round up to an integer.
         predicted_next = math.ceil(model.predict([sequenced_window])[0])
 
-        self.logger.info(f"predicted pod count = {predicted_next}")
+        self.logger.info(f"predicted pod count = {math.ceil(predicted_next)}")
         self.logger.debug("predict returns")
 
         if predicted_next < 0:
