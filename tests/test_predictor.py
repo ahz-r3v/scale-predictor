@@ -3,6 +3,7 @@ import math
 import os
 import tempfile
 from src.scale_predictor.predictor import ScalePredictor
+from src.scale_predictor.utils import window_average  # 默认窗口平均算法
 
 class TestPredictor(unittest.TestCase):
     def setUp(self):
@@ -10,7 +11,7 @@ class TestPredictor(unittest.TestCase):
 
     def test_train_no_data(self):
         """
-        When input data is empty, `trained` should be False。
+        当输入数据为空时，trained 应该为 False。
         """
         dataset = {}
         window_size = 60
@@ -21,7 +22,7 @@ class TestPredictor(unittest.TestCase):
 
     def test_train_insufficient_data(self):
         """
-        Should not generate a model when there are less than 2 invocation data for that function.
+        当某个函数的数据量少于2时，不生成模型。
         """
         dataset = {
             "funcA": [10],
@@ -36,10 +37,10 @@ class TestPredictor(unittest.TestCase):
 
     def test_train_and_predict_single_function(self):
         """
-        Train and predict for a single function, checking the usability and output of the model.
+        对单个函数进行训练和预测，检查模型的可用性及预测输出。
         """
         dataset = {
-            "funcA": [i for i in range(10)]  # naive increasing data 0,1,2,...,9
+            "funcA": [i for i in range(10)]  # 数据：0,1,2,...,9
         }
         window_size = 3
         self.predictor.train(dataset, window_size)
@@ -49,12 +50,11 @@ class TestPredictor(unittest.TestCase):
 
         window = [7, 8, 9] 
         predicted = self.predictor.predict("funcA", window, index=2)
-
-        self.assertGreaterEqual(predicted, 0, f"The predicted value should be greater than or equal to zero, but it turns out to be {predicted}")
+        self.assertGreaterEqual(predicted, 0, f"Predicted value should be >= 0, but got {predicted}")
 
     def test_train_and_predict_multiple_functions(self):
         """
-        multi-trainning
+        多函数训练和预测。
         """
         dataset = {
             "funcA": [1, 2, 3, 4, 5, 6],
@@ -67,39 +67,46 @@ class TestPredictor(unittest.TestCase):
         self.assertIn("funcA", self.predictor.models)
         self.assertIn("funcB", self.predictor.models)
 
-        # predict for funcA
+        # 对 funcA 预测
         windowA = [4, 5] 
         predA = self.predictor.predict("funcA", windowA, index=1)
         self.assertGreaterEqual(predA, 0)
 
-        # predict for funcB
+        # 对 funcB 预测
         windowB = [6, 5] 
         predB = self.predictor.predict("funcB", windowB, index=1)
         self.assertGreaterEqual(predB, 0)
 
     def test_predict_without_training(self):
         """
-        If predict(not_existing_func), should throw an error
+        未训练情况下的预测不再抛异常，而是返回默认的 window_average 计算结果。
         """
-        with self.assertRaises(KeyError):
-            self.predictor.predict("notExistFunc", [1, 2, 3], 2)
+        window = [1, 2, 3]
+        index = 1
+        expected = window_average(index, window)
+        predicted = self.predictor.predict("notExistFunc", window, index)
+        self.assertEqual(predicted, expected,
+                         f"Expected default window_average value {expected} for untrained predictor, got {predicted}")
 
     def test_predict_unregistered_function(self):
         """
-        If predict(not_existing_func), should throw an error
+        未注册函数的预测返回默认值。
         """
         dataset = {
             "funcA": [1, 2, 3, 4],
         }
         window_size = 2
         self.predictor.train(dataset, window_size)
-
-        with self.assertRaises(KeyError):
-            self.predictor.predict("notExistFunc", [1, 2], 1)
+        window = [1, 2]
+        index = 1
+        expected = math.ceil(window_average(index, window))
+        predicted = self.predictor.predict("notExistFunc", window, index)
+        self.assertEqual(predicted, expected,
+                         f"Expected default window_average value {expected} for unregistered function, got {predicted}")
 
     def test_predict_negative_result(self):
         """
-        Negative predict values are possible, 0 should be returned at these cases.
+        当预测结果为负时，应返回 0。
         """
         dataset = {
             "funcA": [10, 0, -10, -20, -30, -40]
@@ -110,7 +117,7 @@ class TestPredictor(unittest.TestCase):
         window = [-20, -30, -40]
         predicted = self.predictor.predict("funcA", window, 2)
         
-        self.assertEqual(predicted, 0, f"should be 0, truns out to be {predicted}")
+        self.assertEqual(predicted, 0, f"Expected 0 for negative prediction, but got {predicted}")
 
     def test_clear(self):
         dataset = {
@@ -130,7 +137,7 @@ class TestPredictor(unittest.TestCase):
 
     def test_export(self):
         """
-        Test that the export method correctly saves the predictor's state to a file.
+        测试 export 方法是否正确保存状态到文件。
         """
         dataset = {
             "funcA": [1, 2, 3, 4, 5, 6],
@@ -143,15 +150,12 @@ class TestPredictor(unittest.TestCase):
             export_path = os.path.join(tmpdirname, 'scale_predictor.joblib')
             self.predictor.export(export_path)
 
-            # Check if the file exists
             self.assertTrue(os.path.exists(export_path), "Export file was not created.")
-
-            # Check file size is greater than zero
             self.assertGreater(os.path.getsize(export_path), 0, "Export file is empty.")
 
     def test_load(self):
         """
-        Test that the load method correctly restores the predictor's state from a file.
+        测试 load 方法是否正确恢复状态。
         """
         dataset = {
             "funcA": [1, 2, 3, 4, 5, 6],
@@ -164,16 +168,15 @@ class TestPredictor(unittest.TestCase):
             export_path = os.path.join(tmpdirname, 'scale_predictor.joblib')
             self.predictor.export(export_path)
 
-            # Create a new predictor and load the exported state
             new_predictor = ScalePredictor('0')
             new_predictor.load(export_path)
 
-            # Verify that the loaded predictor has the same state
             self.assertTrue(new_predictor.trained, "Loaded predictor should be trained.")
             self.assertEqual(new_predictor.window_size, self.predictor.window_size, "Window size mismatch after loading.")
-            self.assertEqual(set(new_predictor.models.keys()), set(self.predictor.models.keys()), "Function names mismatch after loading.")
+            self.assertEqual(set(new_predictor.models.keys()), set(self.predictor.models.keys()),
+                             "Function names mismatch after loading.")
 
-            # Verify predictions are consistent
+            # 检查预测结果是否一致
             windowA = [4, 5] 
             predA_original = self.predictor.predict("funcA", windowA, index=1)
             predA_loaded = new_predictor.predict("funcA", windowA, index=1)
@@ -186,7 +189,7 @@ class TestPredictor(unittest.TestCase):
 
     def test_export_and_load(self):
         """
-        Combined test to export a predictor, clear it, load it back, and verify state and predictions.
+        组合测试：导出、清除、加载后验证状态与预测结果。
         """
         dataset = {
             "funcA": [2, 4, 6, 8, 10, 12],
@@ -195,27 +198,22 @@ class TestPredictor(unittest.TestCase):
         window_size = 3
         self.predictor.train(dataset, window_size)
 
-        # Prepare a temporary file for exporting
         with tempfile.TemporaryDirectory() as tmpdirname:
             export_path = os.path.join(tmpdirname, 'scale_predictor_combined.joblib')
             self.predictor.export(export_path)
 
-            # Clear the predictor
             self.predictor.clear()
             self.assertFalse(self.predictor.trained)
             self.assertEqual(len(self.predictor.models), 0)
             self.assertEqual(self.predictor.window_size, 0)
 
-            # Load the predictor back
             self.predictor.load(export_path)
 
-            # Verify the state
             self.assertTrue(self.predictor.trained, "Predictor should be trained after loading.")
             self.assertEqual(self.predictor.window_size, window_size, "Window size mismatch after loading.")
             self.assertIn("funcA", self.predictor.models)
             self.assertIn("funcB", self.predictor.models)
 
-            # Verify predictions
             windowA = [6, 8, 10]
             predA = self.predictor.predict("funcA", windowA, index=2)
             expected_predA = math.ceil(self.predictor.models["funcA"].predict([windowA])[0])

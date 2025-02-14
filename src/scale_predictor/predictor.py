@@ -76,12 +76,9 @@ class ScalePredictor:
         """
         self.logger.debug("predict called.")
         if not self.trained or function_name not in self.models or self.window_size == 0:
-            if self.debug == "0":
-                self.logger.warning(f"No trained model found for function '{function_name}', use default model.")
-                predicted_next = window_average(index, window, self.smoothing_coeff)
-            else:
-                self.logger.debug(f"No trained model found for function '{function_name}', but returns 1 in debug mod.")
-                return 1
+            self.logger.warning(f"No trained model found for function '{function_name}', use default window_average.")
+            predicted_next = window_average(index, window)
+            return math.ceil(predicted_next)
 
         model = self.models[function_name]
 
