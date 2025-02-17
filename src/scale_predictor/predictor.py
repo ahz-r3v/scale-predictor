@@ -78,7 +78,7 @@ class ScalePredictor:
         if not self.trained or function_name not in self.models or self.window_size == 0:
             self.logger.warning(f"No trained model found for function '{function_name}', use default window_average.")
             predicted_next = window_average(index, window)
-            return math.ceil(predicted_next)
+            return predicted_next
 
         model = self.models[function_name]
 
@@ -88,9 +88,9 @@ class ScalePredictor:
 
         # Predict next second.
         # Round up to an integer.
-        predicted_next = math.ceil(model.predict([sequenced_window])[0])
+        predicted_next = model.predict([sequenced_window])[0]
 
-        self.logger.info(f"predicted pod count = {math.ceil(predicted_next)}")
+        self.logger.info(f"predicted pod count = {predicted_next}")
         self.logger.debug("predict returns")
 
         if predicted_next < 0:
