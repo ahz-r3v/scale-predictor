@@ -30,7 +30,7 @@ class ScalePredictor:
         self.smoothing_coeff = 0.6
         self.logger = logging.getLogger(__name__)
 
-    def train(self, dataset: Dict[str, List[int]], window_size: int):
+    def train(self, dataset: Dict[str, List[float]], window_size: int):
         """
         Train a linear regression model for each function based on its historical data.
         For each second we predict next second.
@@ -62,7 +62,7 @@ class ScalePredictor:
 
         self.trained = len(self.models) > 0
 
-    def predict(self, function_name: str, window: List[int], index: int) -> int:
+    def predict(self, function_name: str, window: List[float], index: int) -> float:
         """
         Predict how many instances are needed for a given function based on
         the most recent usage window (e.g., last 60 seconds).
@@ -96,7 +96,7 @@ class ScalePredictor:
         if predicted_next < 0:
             return 0
         
-        return math.ceil(predicted_next)
+        return predicted_next
 
     def clear(self):
         """

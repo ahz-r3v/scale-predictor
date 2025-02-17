@@ -40,6 +40,7 @@ if __name__ == "__main__":
 
     grpc_server.add_insecure_port(f'[::]:{50051}')
     grpc_server.start()
+    logger.info("[VERSION] v0.1.2")
     logger.info("gRPC server is running on port 50051...")
     
     grpc_server.wait_for_termination()
