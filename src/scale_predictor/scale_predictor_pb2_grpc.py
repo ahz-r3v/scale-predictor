@@ -26,7 +26,8 @@ if _version_not_supported:
 
 
 class ScalePredictorStub(object):
-    """Missing associated documentation comment in .proto file."""
+    """RPC Services
+    """
 
     def __init__(self, channel):
         """Constructor.
@@ -39,12 +40,24 @@ class ScalePredictorStub(object):
                 request_serializer=scale__predictor__pb2.PredictRequest.SerializeToString,
                 response_deserializer=scale__predictor__pb2.PredictResponse.FromString,
                 _registered_method=True)
+        self.Train = channel.unary_unary(
+                '/scale_predictor.ScalePredictor/Train',
+                request_serializer=scale__predictor__pb2.TrainRequest.SerializeToString,
+                response_deserializer=scale__predictor__pb2.TrainResponse.FromString,
+                _registered_method=True)
 
 
 class ScalePredictorServicer(object):
-    """Missing associated documentation comment in .proto file."""
+    """RPC Services
+    """
 
     def Predict(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def Train(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -58,6 +71,11 @@ def add_ScalePredictorServicer_to_server(servicer, server):
                     request_deserializer=scale__predictor__pb2.PredictRequest.FromString,
                     response_serializer=scale__predictor__pb2.PredictResponse.SerializeToString,
             ),
+            'Train': grpc.unary_unary_rpc_method_handler(
+                    servicer.Train,
+                    request_deserializer=scale__predictor__pb2.TrainRequest.FromString,
+                    response_serializer=scale__predictor__pb2.TrainResponse.SerializeToString,
+            ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
             'scale_predictor.ScalePredictor', rpc_method_handlers)
@@ -67,7 +85,8 @@ def add_ScalePredictorServicer_to_server(servicer, server):
 
  # This class is part of an EXPERIMENTAL API.
 class ScalePredictor(object):
-    """Missing associated documentation comment in .proto file."""
+    """RPC Services
+    """
 
     @staticmethod
     def Predict(request,
@@ -86,6 +105,33 @@ class ScalePredictor(object):
             '/scale_predictor.ScalePredictor/Predict',
             scale__predictor__pb2.PredictRequest.SerializeToString,
             scale__predictor__pb2.PredictResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def Train(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/scale_predictor.ScalePredictor/Train',
+            scale__predictor__pb2.TrainRequest.SerializeToString,
+            scale__predictor__pb2.TrainResponse.FromString,
             options,
             channel_credentials,
             insecure,

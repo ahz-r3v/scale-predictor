@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x15scale_predictor.proto\x12\x0fscale_predictor\"F\n\x0ePredictRequest\x12\x15\n\rfunction_name\x18\x01 \x01(\t\x12\x0e\n\x06window\x18\x02 \x03(\x05\x12\r\n\x05index\x18\x03 \x01(\x05\"!\n\x0fPredictResponse\x12\x0e\n\x06result\x18\x01 \x01(\x05\x32^\n\x0eScalePredictor\x12L\n\x07Predict\x12\x1f.scale_predictor.PredictRequest\x1a .scale_predictor.PredictResponseb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x15scale_predictor.proto\x12\x0fscale_predictor\"F\n\x0ePredictRequest\x12\x15\n\rfunction_name\x18\x01 \x01(\t\x12\x0e\n\x06window\x18\x02 \x03(\x01\x12\r\n\x05index\x18\x03 \x01(\x05\"!\n\x0fPredictResponse\x12\x0e\n\x06result\x18\x01 \x01(\x01\"=\n\x0cLearningPair\x12\x14\n\x0cinput_window\x18\x01 \x03(\x01\x12\x17\n\x0f\x65xpected_output\x18\x02 \x01(\x01\"[\n\x0cTrainRequest\x12\x15\n\rfunction_name\x18\x01 \x01(\t\x12\x34\n\rlearning_data\x18\x02 \x03(\x0b\x32\x1d.scale_predictor.LearningPair\"4\n\rTrainResponse\x12\x12\n\nerror_code\x18\x01 \x01(\x05\x12\x0f\n\x07message\x18\x02 \x01(\t2\xa6\x01\n\x0eScalePredictor\x12L\n\x07Predict\x12\x1f.scale_predictor.PredictRequest\x1a .scale_predictor.PredictResponse\x12\x46\n\x05Train\x12\x1d.scale_predictor.TrainRequest\x1a\x1e.scale_predictor.TrainResponseb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -35,6 +35,12 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_PREDICTREQUEST']._serialized_end=112
   _globals['_PREDICTRESPONSE']._serialized_start=114
   _globals['_PREDICTRESPONSE']._serialized_end=147
-  _globals['_SCALEPREDICTOR']._serialized_start=149
-  _globals['_SCALEPREDICTOR']._serialized_end=243
+  _globals['_LEARNINGPAIR']._serialized_start=149
+  _globals['_LEARNINGPAIR']._serialized_end=210
+  _globals['_TRAINREQUEST']._serialized_start=212
+  _globals['_TRAINREQUEST']._serialized_end=303
+  _globals['_TRAINRESPONSE']._serialized_start=305
+  _globals['_TRAINRESPONSE']._serialized_end=357
+  _globals['_SCALEPREDICTOR']._serialized_start=360
+  _globals['_SCALEPREDICTOR']._serialized_end=526
 # @@protoc_insertion_point(module_scope)
