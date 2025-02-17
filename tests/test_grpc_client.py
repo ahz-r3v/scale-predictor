@@ -52,9 +52,9 @@ class TestScalePredictorService(unittest.TestCase):
             index=index
         )
         response = self.stub.Predict(request)
-        expected_prediction = math.ceil(self.service.predictor.models["funcA"].predict([window])[0])
+        expected_prediction = self.service.predictor.models["funcA"].predict([window])[0]
         expected_prediction = max(expected_prediction, 0)
-        self.assertEqual(response.result, int(expected_prediction))
+        self.assertEqual(response.result, expected_prediction)
 
     def test_predict_not_trained(self):
         self.service.predictor.clear()
@@ -84,7 +84,7 @@ class TestScalePredictorService(unittest.TestCase):
         )
         response = self.stub.Predict(request)
         expected_prediction = window_average(index, window)
-        self.assertEqual(response.result, math.ceil(expected_prediction))
+        self.assertEqual(response.result, expected_prediction)
 
     def test_predict_negative_result(self):
         dataset = {

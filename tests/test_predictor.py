@@ -99,7 +99,7 @@ class TestPredictor(unittest.TestCase):
         self.predictor.train(dataset, window_size)
         window = [1, 2]
         index = 1
-        expected = math.ceil(window_average(index, window))
+        expected = window_average(index, window)
         predicted = self.predictor.predict("notExistFunc", window, index)
         self.assertEqual(predicted, expected,
                          f"Expected default window_average value {expected} for unregistered function, got {predicted}")
@@ -216,13 +216,13 @@ class TestPredictor(unittest.TestCase):
 
             windowA = [6, 8, 10]
             predA = self.predictor.predict("funcA", windowA, index=2)
-            expected_predA = math.ceil(self.predictor.models["funcA"].predict([windowA])[0])
+            expected_predA = self.predictor.models["funcA"].predict([windowA])[0]
             expected_predA = max(expected_predA, 0)
             self.assertEqual(predA, expected_predA, "Prediction for funcA mismatch after loading.")
 
             windowB = [8, 6, 4]
             predB = self.predictor.predict("funcB", windowB, index=2)
-            expected_predB = math.ceil(self.predictor.models["funcB"].predict([windowB])[0])
+            expected_predB = self.predictor.models["funcB"].predict([windowB])[0]
             expected_predB = max(expected_predB, 0)
             self.assertEqual(predB, expected_predB, "Prediction for funcB mismatch after loading.")
 
