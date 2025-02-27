@@ -6,6 +6,7 @@ import joblib
 import os
 import logging
 from .utils import window_average
+from .nhits import NHITSModel
 
 class ScalePredictor:
     """
@@ -22,15 +23,40 @@ class ScalePredictor:
             Clean or reset the current predictive model.
     """
 
-    def __init__(self, debug):
-        self.models: Dict[str, LinearRegression] = {}
+    def __init__(self, model_selector):
+        self.models: Dict[str, Any] = {}
         self.trained: bool = False
         self.window_size: int = 0
-        self.debug = debug
+        self.model_selector = model_selector
         self.smoothing_coeff = 0.6
         self.logger = logging.getLogger(__name__)
+        self.nhitsmdl = None
+        match self.model_selector:
+            case "nhits":
+                self.nhitsmdl = NHITSModel(60)
 
-    def train(self, dataset: Dict[str, List[float]], window_size: int):
+    def train_by_file(self, path: str, window_size: int):
+        self.window_size = window_size
+        match self.model_selector:
+            case "nhits":
+                succ, trained_func_names = self.nhitsmdl.train_from_file(path, window_size)
+                if not succ:
+                    return False
+                for func_name in trained_func_names:
+                    self.models[func_name] = self.nhitsmdl
+                print(self.models)
+                self.trained = True
+                return True
+            case "linear":
+                return True
+            case "historical":
+                return True
+            case "default":
+                return True
+
+
+
+    def train(self, dataset: Dict[str, List[float]], window_size: int) -> bool:
         """
         Train a linear regression model for each function based on its historical data.
         For each second we predict next second.
@@ -75,20 +101,29 @@ class ScalePredictor:
             int: The number of instances needed.
         """
         self.logger.debug("predict called.")
+        #
+
         if not self.trained or function_name not in self.models or self.window_size == 0:
             self.logger.warning(f"No trained model found for function '{function_name}', use default window_average.")
             predicted_next = window_average(index, window)
             return predicted_next
 
+        # Auto-choose model
         model = self.models[function_name]
 
-        # Rearrange the windows according to the index to ensure order.
-        # Spin and split window.
+        # Rearrange the windows according to the index to ensure order. Spin and split window.
         sequenced_window = (window[index+1:] + window[:index+1])[-self.window_size:]
 
-        # Predict next second.
-        # Round up to an integer.
-        predicted_next = model.predict([sequenced_window])[0]
+        match self.model_selector:
+            case "nhits":
+                succ, predicted_next = model.predict(function_name, sequenced_window)
+                # if failed, fall back to window_average
+                if not succ:
+                    self.logger.warning(f"NHiTS predict failed for function '{function_name}', use default window_average.")
+                    predicted_next = window_average(index, window)
+            case "default":
+                # Predict next second. Round up to an integer.
+                predicted_next = model.predict([sequenced_window])[0]
 
         self.logger.info(f"predicted pod count = {predicted_next}")
         self.logger.debug("predict returns")

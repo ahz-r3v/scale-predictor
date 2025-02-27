@@ -29,8 +29,21 @@ message TrainResponse {
     string message = 2;
 }
 
+// Training with file
+message FileChunk {
+    string filename = 1;
+    bytes data = 2;
+    int32 window_size = 3;
+}
+
+message TrainStatus {
+    bool success = 1;
+    string message = 2;
+}
+
 // RPC Services
 service ScalePredictor {
     rpc Predict (PredictRequest) returns (PredictResponse);
     rpc Train (TrainRequest) returns (TrainResponse);
+    rpc TrainByFile (stream FileChunk) returns (TrainStatus);
 }

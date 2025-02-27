@@ -12,7 +12,7 @@ import os
 import logging
 
 if __name__ == "__main__":
-    debug = os.getenv("PD_DEBUG", default='0')
+    model_selector = os.getenv("PREDICTOR_MODEL", default='default')
 
     logging.basicConfig(
         level=logging.DEBUG,
@@ -27,14 +27,14 @@ if __name__ == "__main__":
     # Start grpc server
     
     grpc_server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-    grpc_service = ScalePredictorService(debug)
+    grpc_service = ScalePredictorService(model_selector)
     scale_predictor_pb2_grpc.add_ScalePredictorServicer_to_server(
         grpc_service,
         grpc_server
     )
     SERVICE_NAMES = (
         scale_predictor_pb2.DESCRIPTOR.services_by_name['ScalePredictor'].full_name,
-        reflection.SERVICE_NAME,  # 反射服务
+        reflection.SERVICE_NAME,  # reflect service
     )
     reflection.enable_server_reflection(SERVICE_NAMES, grpc_server)
 

@@ -3,11 +3,11 @@ import math
 import os
 import tempfile
 from src.scale_predictor.predictor import ScalePredictor
-from src.scale_predictor.utils import window_average  # 默认窗口平均算法
+from src.scale_predictor.utils import window_average 
 
 class TestPredictor(unittest.TestCase):
     def setUp(self):
-        self.predictor = ScalePredictor('0')
+        self.predictor = ScalePredictor('default')
 
     def test_train_no_data(self):
         """
@@ -168,7 +168,7 @@ class TestPredictor(unittest.TestCase):
             export_path = os.path.join(tmpdirname, 'scale_predictor.joblib')
             self.predictor.export(export_path)
 
-            new_predictor = ScalePredictor('0')
+            new_predictor = ScalePredictor('default')
             new_predictor.load(export_path)
 
             self.assertTrue(new_predictor.trained, "Loaded predictor should be trained.")
