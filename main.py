@@ -24,8 +24,13 @@ if __name__ == "__main__":
     )
     logger = logging.getLogger(__name__)
 
+    logger.info("[VERSION] v0.1.3")
+    if model_selector not in ["default", "linear", "historical", "nhits"]:
+        logger.error(f"Invalid model selector: {model_selector}, using default model instead.")
+        model_selector = "default"
+    logger.info(f"Using model: {model_selector}")
+
     # Start grpc server
-    
     grpc_server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     grpc_service = ScalePredictorService(model_selector)
     scale_predictor_pb2_grpc.add_ScalePredictorServicer_to_server(
@@ -40,7 +45,6 @@ if __name__ == "__main__":
 
     grpc_server.add_insecure_port(f'[::]:{50051}')
     grpc_server.start()
-    logger.info("[VERSION] v0.1.2")
     logger.info("gRPC server is running on port 50051...")
     
     grpc_server.wait_for_termination()

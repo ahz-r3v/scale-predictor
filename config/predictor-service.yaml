@@ -7,6 +7,7 @@ spec:
     app: scale-predictor  
   ports:
     - name: scale-predictor-service
-      port: 50051       
+      port: 50051 
       targetPort: 50051 
+      nodePort: 30051
   type: ClusterIP  
