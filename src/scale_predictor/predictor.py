@@ -5,6 +5,7 @@ from sklearn.linear_model import LinearRegression
 import joblib
 import os
 import logging
+import re
 from .utils import window_average
 from .nhits import NHITSModel
 
@@ -101,9 +102,14 @@ class ScalePredictor:
             int: The number of instances needed.
         """
         self.logger.debug("predict called.")
-        #
-
-        if not self.trained or function_name not in self.models or self.window_size == 0:
+        # If not trained, or no model for the function, or window size is 0, use window_average.
+        match = re.search(r"trace-func-(\d+)", function_name)
+        func_index = int(match.group(1)) if match else None
+        if func_index is None:
+            self.logger.warning(f"Invalid function name '{function_name}', use default window_average.")
+            predicted_next = window_average(index, window)
+            return predicted_next
+        if not self.trained or func_index not in self.models:
             self.logger.warning(f"No trained model found for function '{function_name}', use default window_average.")
             predicted_next = window_average(index, window)
             return predicted_next

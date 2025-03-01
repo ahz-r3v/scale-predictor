@@ -93,7 +93,7 @@ class NHITSModel:
 
         if len(window) != self.window_size:
             self.logger.error(f"nhits predict fail: input window length should equals to window_size:{self.window_size}, but got {len(window)}")
-            raise ValueError(f"nhits predict fail: input window length should equals to window_size:{self.window_size}, but got {len(window)}")
+            return False, 0
 
         # only take now().minute and now().second
         now = datetime.now()
