@@ -10,4 +10,4 @@ spec:
       port: 50051 
       targetPort: 50051 
       nodePort: 30051
-  type: ClusterIP  
+  type: NodePort
