@@ -29,8 +29,8 @@ docker run -p 50051:50051 scale-predictor
 Upload your image:
 ``` bash
 docker login -u <your_username> -p <yourpassword>
-docker build -t <username>/scale-predictor:latest .
-docker push <username>/scale-predictor:latest
+docker build -t <username>/scale-predictor-multiProcess:latest .
+docker push <username>/scale-predictor-multiProcess:latest
 
 ```
 Modify `zhaidea` in config/predictor.yaml to your username
@@ -38,5 +38,18 @@ On k8s clauster:
 ``` bash
 kubectl apply -f config/predictor.yaml -n knative-serving
 kubectl apply -f config/predictor-service.yaml -n knative-serving
+```
+
+## Set environment value  
+On k8s cluster:  
+```bash
+# Use NHiTS model
+kubectl set env deployment/scale-predictor -n knative-serving PREDICTOR_MODEL=nhits
+# Use Linear Regressing
+kubectl set env deployment/scale-predictor -n knative-serving PREDICTOR_MODEL=linear
+# Use Historical
+kubectl set env deployment/scale-predictor -n knative-serving PREDICTOR_MODEL=historical
+# Use defalt window_average
+kubectl set env deployment/scale-predictor -n knative-serving PREDICTOR_MODEL=default
 ```
 
