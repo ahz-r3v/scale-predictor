@@ -34,7 +34,7 @@ if __name__ == "__main__":
     logger.info(f"Using model: {model_selector}")
 
     # Start grpc server
-    grpc_server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+    grpc_server = grpc.server(futures.ThreadPoolExecutor(max_workers=4))
     grpc_service = ScalePredictorService(model_selector)
     scale_predictor_pb2_grpc.add_ScalePredictorServicer_to_server(
         grpc_service,

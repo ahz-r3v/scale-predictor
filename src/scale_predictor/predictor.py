@@ -36,6 +36,19 @@ class ScalePredictor:
         match self.model_selector:
             case "nhits":
                 self.nhitsmdl = NHITSModel(60)
+                # try loading models
+                succ, loaded_func_names = self.nhitsmdl.load_model()
+                if succ:
+                    for func_name in loaded_func_names:
+                        self.models[func_name] = self.nhitsmdl
+                        self.logger.info(f"Loaded function '{func_name}'")
+                    self.trained = True
+            case "linear":
+                pass
+            case "historical":
+                pass
+            case "default":
+                pass
 
     def train_by_file(self, path: str, window_size: int):
         self.window_size = window_size

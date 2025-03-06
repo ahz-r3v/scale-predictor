@@ -1,24 +1,53 @@
 import pandas as pd
-from datetime import datetime, timedelta, date
-from neuralforecast.models import NHITS
-from neuralforecast import NeuralForecast
-from neuralforecast.utils import AirPassengersDF
-from neuralforecast.losses.pytorch import MAE
-from sklearn.metrics import mean_absolute_error, mean_absolute_percentage_error
+import pickle
 import logging
 import os
 import shutil
 import threading
 from collections import defaultdict
 from typing import Dict, List, Any
+from datetime import datetime, timedelta, date
+from neuralforecast.models import NHITS
+from neuralforecast import NeuralForecast
+from neuralforecast.utils import AirPassengersDF
+from neuralforecast.losses.pytorch import MAE
+from sklearn.metrics import mean_absolute_error, mean_absolute_percentage_error
 
 class NHITSModel:
     def __init__(self, window_size):
         self.model: Dict[str, Any] = {}
         self.window_size = window_size
         self.output_path = 'data/'
+        self.model_path = 'models/' 
+        os.makedirs(self.model_path, exist_ok=True) 
         self.logger = logging.getLogger(__name__)
         self.locks = defaultdict(threading.Lock)
+
+
+    def save_model(self, func_name):
+        with self.locks[func_name]:
+            if func_name in self.model:
+                model_filename = os.path.join(self.model_path, f"{func_name}.pkl")
+                with open(model_filename, "wb") as f:
+                    pickle.dump(self.model[func_name], f)
+                self.logger.info(f"Model for function '{func_name}' saved successfully!")
+
+    def load_model(self) -> (bool, List[str]):
+        if not os.path.exists(self.model_path):
+            self.logger.warning("No model found!")
+            return False, []
+        if not os.listdir(self.model_path):
+            self.logger.warning("No model found!")
+            return False, []
+        for filename in os.listdir(self.model_path):
+            if filename.endswith(".pkl"):
+                func_name = filename.replace(".pkl", "")
+                model_filename = os.path.join(self.model_path, filename)
+                with open(model_filename, "rb") as f:
+                    self.model[func_name] = pickle.load(f)
+                self.logger.info(f"Model for function '{func_name}' loaded successfully!")
+        return True, list(self.model.keys())
+
 
     def generate_dataframe(self, file_path, train_set_filename, test_set_filename):
         self.logger.info(f"generate_dataframe: file_path={file_path}, train_set_filename={train_set_filename}, test_set_filename={test_set_filename}")
@@ -66,26 +95,23 @@ class NHITSModel:
         return train, test
 
     # returns (success: bool, trained_func_index)
-    def train_from_file(self, filepath: str, window_size: int):
+    def train_from_file(self, filepath: str, window_size: int) -> (bool, List[str]):
         train_set_filename = 'data/train.csv'
         test_set_filename = 'data/test.csv'
         self.window_size = window_size
+
         self.generate_dataframe(filepath, train_set_filename, test_set_filename)
         train = pd.read_csv(train_set_filename)
         train['ds'] = pd.to_datetime(train['ds'])
 
         required_columns = {'unique_id', 'ds', 'y'}
         assert required_columns.issubset(train.columns)
+
         trained_func_index = unique_ids = train["unique_id"].astype(str).unique()
         func_num = len(trained_func_index)
 
-        # model = NHITS(h=1, input_size=self.window_size, loss=MAE())
-        # nf = NeuralForecast(models=[model], freq='s')
-        # nf.fit(train)
-
-        # self.model = nf
-        # self.logger.info(f"NHITS model trained succesfully! Function total num= {func_num}")
         self.logger.info(f"NHITS model start training! Function total num= {func_num}")
+
         for func_name in trained_func_index:
             func_data = train[train["unique_id"].astype(str) == func_name]
             self.train_one_model(func_name, func_data)
@@ -102,9 +128,13 @@ class NHITSModel:
         model = NHITS(h=1, input_size=self.window_size, loss=MAE(), max_steps=100)
         nf = NeuralForecast(models=[model], freq='s')
         nf.fit(train)
+
         with self.locks[func_name]:
             self.model[func_name] = nf
+
         self.logger.info(f"NHITS model trained succesfully! Function name= {func_name}")
+        self.save_model(func_name)
+
 
     def predict(self, func_name, window):
         if self.model is None or self.window_size is None:
@@ -136,7 +166,8 @@ class NHITSModel:
         with self.locks[func_name]:
             model = self.model[func_name]
             forecast = model.predict(input_df)
-        self.logger.info("nhits predict successfully!")
+        pid = os.getpid()
+        self.logger.info(f"[PID: {pid}] nhits predict successfully!")
         return True, forecast.iloc[0]['NHITS']
 
 

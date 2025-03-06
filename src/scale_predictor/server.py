@@ -23,8 +23,9 @@ class ScalePredictorService(scale_predictor_pb2_grpc.ScalePredictorServicer):
         function_name = request.function_name
         window = request.window
         index = request.index
+        pid = os.getpid()
 
-        self.logger.debug(f"grpc 'Predict' received. function_name: {function_name}, window: {window}, index: {index}")
+        self.logger.debug(f"[PID: {pid}] grpc 'Predict' received. function_name: {function_name}, window: {window}, index: {index}")
         
         try:
             result = self.predictor.predict(function_name, window, index)
