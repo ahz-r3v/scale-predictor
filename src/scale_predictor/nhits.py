@@ -8,16 +8,20 @@ from sklearn.metrics import mean_absolute_error, mean_absolute_percentage_error
 import logging
 import os
 import shutil
-
+import threading
+from collections import defaultdict
+from typing import Dict, List, Any
 
 class NHITSModel:
     def __init__(self, window_size):
-        self.model = None
+        self.model: Dict[str, Any] = {}
         self.window_size = window_size
         self.output_path = 'data/'
         self.logger = logging.getLogger(__name__)
+        self.locks = defaultdict(threading.Lock)
 
     def generate_dataframe(self, file_path, train_set_filename, test_set_filename):
+        self.logger.info(f"generate_dataframe: file_path={file_path}, train_set_filename={train_set_filename}, test_set_filename={test_set_filename}")
         df = pd.read_csv(file_path, names=['timestamp', 'function', 'cpu'], dtype={'timestamp': int, 'function': str, 'cpu': float}, skiprows=1)
 
         # trim timestamps to [min_time, max_time]
@@ -58,6 +62,7 @@ class NHITSModel:
         train.to_csv(train_set_filename, index=False)
         test.to_csv(test_set_filename, index=False)
 
+        self.logger.info(f"generate_dataframe successfully!")
         return train, test
 
     # returns (success: bool, trained_func_index)
@@ -74,21 +79,40 @@ class NHITSModel:
         trained_func_index = unique_ids = train["unique_id"].astype(str).unique()
         func_num = len(trained_func_index)
 
-        model = NHITS(h=3, input_size=self.window_size, loss=MAE())
-        nf = NeuralForecast(models=[model], freq='s')
-        nf.fit(train)
+        # model = NHITS(h=1, input_size=self.window_size, loss=MAE())
+        # nf = NeuralForecast(models=[model], freq='s')
+        # nf.fit(train)
 
-        self.model = nf
+        # self.model = nf
+        # self.logger.info(f"NHITS model trained succesfully! Function total num= {func_num}")
+        self.logger.info(f"NHITS model start training! Function total num= {func_num}")
+        for func_name in trained_func_index:
+            func_data = train[train["unique_id"].astype(str) == func_name]
+            self.train_one_model(func_name, func_data)
+
         self.logger.info(f"NHITS model trained succesfully! Function total num= {func_num}")
 
         log_dir = "lightning_logs"
         if os.path.exists(log_dir):
             shutil.rmtree(log_dir)
         return True, trained_func_index
+    
+    def train_one_model(self, func_name, train):
+        self.logger.info(f"NHITS model start training! Function name= {func_name}")
+        model = NHITS(h=1, input_size=self.window_size, loss=MAE(), max_steps=100)
+        nf = NeuralForecast(models=[model], freq='s')
+        nf.fit(train)
+        with self.locks[func_name]:
+            self.model[func_name] = nf
+        self.logger.info(f"NHITS model trained succesfully! Function name= {func_name}")
 
     def predict(self, func_name, window):
-        if self.model is None:
+        if self.model is None or self.window_size is None:
             self.logger.warning("nhits predict fail: no model found!")
+            return False, 0
+        
+        if func_name not in self.model:
+            self.logger.warning(f"nhits predict fail: no model found for function {func_name}")
             return False, 0
 
         if len(window) != self.window_size:
@@ -104,12 +128,14 @@ class NHITSModel:
 
         # 构造 DataFrame
         input_df = pd.DataFrame({
-            'unique_id': [func_name] * self.window_size,
+            'unique_id': [func_name] * len(window),
             'ds': ds_series,
             'y': window
         })
 
-        forecast = self.model.predict(input_df)
+        with self.locks[func_name]:
+            model = self.model[func_name]
+            forecast = model.predict(input_df)
         self.logger.info("nhits predict successfully!")
         return True, forecast.iloc[0]['NHITS']
 

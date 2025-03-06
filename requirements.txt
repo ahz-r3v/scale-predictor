@@ -5,4 +5,4 @@ grpcio>=1.70.0
 grpcio-tools>=1.70.0
 joblib>=1.4.2
 grpcio-reflection>=1.70.0
-neuralforecast>=2.0.1
+neuralforecast>=3.0.0

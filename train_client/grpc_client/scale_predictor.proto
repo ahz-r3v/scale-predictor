@@ -1,0 +1,51 @@
+syntax = "proto3";
+
+package scale_predictor;
+
+option go_package = ".;grpc_client";
+
+// Predict related messages
+message PredictRequest {
+    string function_name = 1;
+    repeated double window = 2;
+    int32 index = 3;
+}
+
+message PredictResponse {
+    double result = 1;
+}
+
+// Training related messages
+message LearningPair{
+    repeated double input_window = 1;
+    double expected_output = 2;
+}
+
+message TrainRequest {
+    string function_name = 1;
+    repeated LearningPair learning_data = 2;
+}
+
+message TrainResponse {
+    int32 error_code = 1; // 0 for success
+    string message = 2;
+}
+
+// Training with file
+message FileChunk {
+    string filename = 1;
+    bytes data = 2;
+    int32 window_size = 3;
+}
+
+message TrainStatus {
+    bool success = 1;
+    string message = 2;
+}
+
+// RPC Services
+service ScalePredictor {
+    rpc Predict (PredictRequest) returns (PredictResponse);
+    rpc Train (TrainRequest) returns (TrainResponse);
+    rpc TrainByFile (stream FileChunk) returns (TrainStatus);
+}

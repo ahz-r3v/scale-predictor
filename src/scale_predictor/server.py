@@ -2,6 +2,9 @@ import grpc
 import logging
 from concurrent import futures
 import os
+import tempfile
+import uuid
+import pandas as pd
 
 import src.scale_predictor.scale_predictor_pb2 as scale_predictor_pb2
 import src.scale_predictor.scale_predictor_pb2_grpc as scale_predictor_pb2_grpc
@@ -13,6 +16,8 @@ class ScalePredictorService(scale_predictor_pb2_grpc.ScalePredictorServicer):
         self.predictor = ScalePredictor(debug)
         self.debug = debug
         self.logger = logging.getLogger(__name__)
+        self.data_dir = "./data"
+        os.makedirs(self.data_dir, exist_ok=True)
 
     def Predict(self, request, context):
         function_name = request.function_name
@@ -35,29 +40,71 @@ class ScalePredictorService(scale_predictor_pb2_grpc.ScalePredictorServicer):
         )
 
     def TrainByFile(self, request_iterator, context):
+        """Handle file upload and model training request.
+        
+        Args:
+            request_iterator: Iterator of FileChunk messages containing file data
+            context: gRPC context
+            
+        Returns:
+            TrainStatus message indicating success/failure
+        """
         filename = None
         window_size = None
-        data_dir = "./data"
-        os.makedirs(data_dir, exist_ok=True)
+        
+        # Create a temporary file with unique name
+        temp_file = os.path.join(self.data_dir, f"upload_{uuid.uuid4()}.csv")
+        self.logger.info(f"Starting file upload to {temp_file}")
 
-        with open("data/received.csv", "wb") as f:
-            for chunk in request_iterator:
-                if not filename:
-                    filename = chunk.filename  # 记录文件名
-                if not window_size:
-                    window_size = chunk.window_size
-                f.write(chunk.data)
+        try:
+            # Write chunks to temporary file
+            with open(temp_file, "wb") as f:
+                for chunk in request_iterator:
+                    if not filename:
+                        filename = chunk.filename
+                    if not window_size:
+                        window_size = chunk.window_size
+                    if not chunk.data:
+                        raise ValueError("Received empty data chunk")
+                    f.write(chunk.data)
 
-        # check exist
-        if not os.path.exists(filename):
-            return scale_predictor_pb2.TrainStatus(success=False, message="File save failed!")
+            if not filename or not window_size:
+                raise ValueError("Missing required metadata (filename or window_size)")
 
-        # train
-        result = self.predictor.train_by_file("./data/received.csv", window_size)
-        if result == True:
-            return scale_predictor_pb2.TrainStatus(success=True, message=f"Received {filename} and trained successfully!")
+            self.logger.info(f"File received: {filename}, window_size: {window_size}")
+            
+            # Validate CSV format
+            try:
+                df = pd.read_csv(temp_file)
+                if df.empty:
+                    raise ValueError("CSV file is empty")
+            except Exception as e:
+                raise ValueError(f"Invalid CSV format: {str(e)}")
 
-        return scale_predictor_pb2.TrainStatus(success=False, message=f"Received {filename} but Trained failed!")
+            # Train model
+            result = self.predictor.train_by_file(temp_file, window_size)
+            if result:
+                self.logger.info(f"Training successful for {filename}")
+                return scale_predictor_pb2.TrainStatus(
+                    success=True, 
+                    message=f"File {filename} processed and model trained successfully"
+                )
+            else:
+                raise RuntimeError("Model training failed")
+
+        except Exception as e:
+            error_msg = f"Training failed: {str(e)}"
+            self.logger.error(error_msg)
+            return scale_predictor_pb2.TrainStatus(success=False, message=error_msg)
+            
+        finally:
+            # Cleanup temporary file
+            try:
+                if os.path.exists(temp_file):
+                    os.remove(temp_file)
+                    self.logger.debug(f"Cleaned up temporary file: {temp_file}")
+            except Exception as e:
+                self.logger.warning(f"Failed to cleanup temporary file {temp_file}: {str(e)}")
 
 
 

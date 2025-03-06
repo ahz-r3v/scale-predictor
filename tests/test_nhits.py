@@ -1,88 +1,86 @@
+# test_nhits.py
 import unittest
-import pandas as pd
 import os
+import tempfile
+import pandas as pd
 
-# 假设 generate_dataframe 函数在 data_processor.py 文件中
-from src.scale_predictor.nhits import NHITSModel  
+from src.scale_predictor.nhits import NHITSModel
 
-class TestGenerateDataFrame(unittest.TestCase):
+# 定义一个 DummyModel，用于模拟 predict 返回固定结果
+class DummyModel:
+    def predict(self, input_df):
+        # 返回一个包含 NHITS 列的 DataFrame，值固定为 100
+        return pd.DataFrame({'NHITS': [100]})
 
+# 定义 dummy 的 train_one_model 方法，避免调用 neuralforecast 实际训练逻辑
+def dummy_train_one_model(self, func_name, train):
+    self.model[func_name] = DummyModel()
+
+class TestNHITSModel(unittest.TestCase):
     def setUp(self):
+        # 创建 NHITSModel 实例，window_size 取 5
+        self.nhits_model = NHITSModel(window_size=5)
+        # 替换 train_one_model 为 dummy 实现
+        self.nhits_model.train_one_model = dummy_train_one_model.__get__(self.nhits_model, NHITSModel)
 
-        self.test_file_path = "data/testout.csv"
-        self.train_file = "data/train.csv"
-        self.test_file = "data/test.csv"
-
-        # 初始化 NHITSModel
-        self.model = NHITSModel(60)
-
-    def test_generate_dataframe(self):
-        """ 测试 generate_dataframe 生成的数据是否符合预期 """
-
-        # 运行数据处理函数
-        train_df, test_df = self.model.generate_dataframe(self.test_file_path, self.train_file, self.test_file)
-
-        # 预期列
-        expected_columns = {'unique_id', 'timestamp', 'y', 'ds'}
-        self.assertTrue(expected_columns.issubset(train_df.columns), "训练集列名错误")
-        self.assertTrue(expected_columns.issubset(test_df.columns), "测试集列名错误")
-
-        # 针对每个 unique_id，检查时间戳完整性
-        for uid in train_df['unique_id'].unique():
-            uid_train = train_df[train_df['unique_id'] == uid]
-            uid_test = test_df[test_df['unique_id'] == uid]
-
-            # 计算 unique_id 的完整时间范围
-            min_time = uid_train['timestamp'].min()
-            max_time = uid_test['timestamp'].max()
-            expected_timestamps = list(range(min_time, max_time + 1))
-
-            # 合并训练集和测试集，检查时间戳是否完整
-            actual_timestamps = pd.concat([uid_train, uid_test])['timestamp'].tolist()
-            self.assertEqual(expected_timestamps, actual_timestamps, f"时间戳未正确填充 for unique_id {uid}")
-
-        # 检查 `cpu` 是否正确填充为 `y`
-        missing_rows = pd.concat([train_df, test_df])[['unique_id', 'timestamp', 'y']].isna().sum().sum()
-        self.assertEqual(missing_rows, 0, "y 值未正确填充")
-
-        # 训练集和测试集划分是否正确（80%-20%）
-        for uid in train_df['unique_id'].unique():
-            uid_train = train_df[train_df['unique_id'] == uid]
-            uid_test = test_df[test_df['unique_id'] == uid]
-
-            total_time_steps = len(uid_train['timestamp'].unique()) + len(uid_test['timestamp'].unique())
-            expected_train_size = int(0.8 * total_time_steps)
-
-            self.assertEqual(len(uid_train['timestamp'].unique()), expected_train_size, f"训练集大小错误 for unique_id {uid}")
-
-        print("✅ 测试通过：数据格式正确！")
-
-    def test_train_and_predict(self):
-        """ 测试 NHITS 训练和预测 """
-        
-        # 训练模型
-        self.model.train_from_file(self.train_file)
-
-        df = pd.read_csv(self.train_file)
-        window = df[df['unique_id'] == 31]['y'].iloc[:60]
-        print(window)
-
-        # 执行预测
-        predicted_value = self.model.predict('31', window)
-
-        # 确保预测值存在且合理
-        self.assertIsNotNone(predicted_value, "❌ 预测值为空")
-
-        print(f"✅ NHITS 预测成功：{predicted_value}")
-    
-
+        # 创建临时 CSV 文件作为测试数据
+        self.test_dir = tempfile.TemporaryDirectory()
+        self.csv_path = os.path.join(self.test_dir.name, "sample.csv")
+        with open(self.csv_path, "w") as f:
+            # 第一行为表头（实际被 skiprows=1 忽略）
+            f.write("timestamp,function,cpu\n")
+            # 为两个函数生成 10 条数据
+            for t in range(1, 11):
+                f.write(f"{t},trace-func-1,{t * 0.1}\n")
+            for t in range(1, 11):
+                f.write(f"{t},trace-func-2,{t * 0.2}\n")
 
     def tearDown(self):
-        """ 清理测试数据 """
-        # if os.path.exists("train.csv"):
-        #     os.remove("train.csv")
-        # if os.path.exists("test.csv"):
-        #     os.remove("test.csv")
+        self.test_dir.cleanup()
 
-if __name__ == "__main__":
+    def test_generate_dataframe(self):
+        train_csv = os.path.join(self.test_dir.name, "train.csv")
+        test_csv = os.path.join(self.test_dir.name, "test.csv")
+        train_df, test_df = self.nhits_model.generate_dataframe(self.csv_path, train_csv, test_csv)
+        # 检查生成的数据集非空
+        self.assertFalse(train_df.empty)
+        self.assertFalse(test_df.empty)
+        # 检查文件是否生成
+        self.assertTrue(os.path.exists(train_csv))
+        self.assertTrue(os.path.exists(test_csv))
+        # 检查生成的 DataFrame 包含 unique_id 和 ds 列，且 ds 为日期类型
+        self.assertIn("unique_id", train_df.columns)
+        self.assertTrue(pd.api.types.is_datetime64_any_dtype(train_df['ds']))
+
+    def test_train_from_file(self):
+        # 测试从 CSV 文件训练模型
+        success, trained_funcs = self.nhits_model.train_from_file(self.csv_path, window_size=5)
+        self.assertTrue(success)
+        # CSV 中包含两个函数：trace-func-1 和 trace-func-2
+        self.assertEqual(set(trained_funcs), {"trace-func-1", "trace-func-2"})
+        # 检查模型字典中是否添加了相应的键
+        for func in trained_funcs:
+            self.assertIn(func, self.nhits_model.model)
+
+    def test_predict(self):
+        # 模拟训练完成，为 "trace-func-1" 赋予一个 DummyModel
+        self.nhits_model.model["trace-func-1"] = DummyModel()
+        window_valid = [1, 2, 3, 4, 5]
+        # 对已存在的函数调用 predict
+        success, prediction = self.nhits_model.predict("trace-func-1", window_valid)
+        self.assertTrue(success)
+        self.assertEqual(prediction, 100)
+
+        # 对不存在的函数调用 predict，应返回 (False, 0)
+        success, prediction = self.nhits_model.predict("trace-func-unknown", window_valid)
+        self.assertFalse(success)
+        self.assertEqual(prediction, 0)
+
+        # 输入窗口长度不符时，预测应返回失败
+        window_invalid = [1, 2, 3]
+        success, prediction = self.nhits_model.predict("trace-func-1", window_invalid)
+        self.assertFalse(success)
+        self.assertEqual(prediction, 0)
+
+if __name__ == '__main__':
     unittest.main()

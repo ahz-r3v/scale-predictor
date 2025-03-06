@@ -14,6 +14,9 @@ import logging
 if __name__ == "__main__":
     model_selector = os.getenv("PREDICTOR_MODEL", default='default')
 
+    logging.getLogger("pytorch_lightning").setLevel(logging.CRITICAL)
+    logging.getLogger("lightning_fabric").setLevel(logging.CRITICAL)
+
     logging.basicConfig(
         level=logging.DEBUG,
         format="%(asctime)s - %(levelname)s - %(message)s",

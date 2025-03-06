@@ -1,5 +1,5 @@
 # 使用轻量级的 Python 镜像
-FROM python:3.12
+FROM python:3.11
 
 # 设置工作目录
 WORKDIR /scale-predictor

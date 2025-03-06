@@ -1,12 +1,13 @@
 import numpy as np
 import math
-from typing import Dict, List
+from typing import Dict, List, Any
 from sklearn.linear_model import LinearRegression
 import joblib
 import os
 import logging
 import re
-from .utils import window_average
+from .utils import window_average 
+from .utils import trim_window
 from .nhits import NHITSModel
 
 class ScalePredictor:
@@ -45,7 +46,7 @@ class ScalePredictor:
                     return False
                 for func_name in trained_func_names:
                     self.models[func_name] = self.nhitsmdl
-                print(self.models)
+                    self.logger.info(f"Trained function '{func_name}'")
                 self.trained = True
                 return True
             case "linear":
@@ -104,7 +105,8 @@ class ScalePredictor:
         self.logger.debug("predict called.")
         # If not trained, or no model for the function, or window size is 0, use window_average.
         match = re.search(r"trace-func-(\d+)", function_name)
-        func_index = int(match.group(1)) if match else None
+        func_index = match.group(1) if match else None
+        self.logger.info(f"function name: '{function_name}'   func_index={func_index}   model_selector={self.model_selector}")
         if func_index is None:
             self.logger.warning(f"Invalid function name '{function_name}', use default window_average.")
             predicted_next = window_average(index, window)
@@ -115,14 +117,14 @@ class ScalePredictor:
             return predicted_next
 
         # Auto-choose model
-        model = self.models[function_name]
+        model = self.models[func_index]
 
         # Rearrange the windows according to the index to ensure order. Spin and split window.
-        sequenced_window = (window[index+1:] + window[:index+1])[-self.window_size:]
+        sequenced_window = window[index+1:] + window[:index+1]
 
         match self.model_selector:
             case "nhits":
-                succ, predicted_next = model.predict(function_name, sequenced_window)
+                succ, predicted_next = model.predict(func_index, sequenced_window)
                 # if failed, fall back to window_average
                 if not succ:
                     self.logger.warning(f"NHiTS predict failed for function '{function_name}', use default window_average.")
