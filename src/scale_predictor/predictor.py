@@ -6,9 +6,9 @@ import joblib
 import os
 import logging
 import re
-from .utils import window_average 
-from .utils import trim_window
-from .nhits import NHITSModel
+import src.scale_predictor.utils as utils
+from src.scale_predictor.nhits import NHITSModel
+from src.scale_predictor.linear import LinearModel
 
 class ScalePredictor:
     """
@@ -33,6 +33,7 @@ class ScalePredictor:
         self.smoothing_coeff = 0.6
         self.logger = logging.getLogger(__name__)
         self.nhitsmdl = None
+        self.linearmdl = None
         match self.model_selector:
             case "nhits":
                 self.nhitsmdl = NHITSModel(60)
@@ -41,10 +42,17 @@ class ScalePredictor:
                 if succ:
                     for func_name in loaded_func_names:
                         self.models[func_name] = self.nhitsmdl
-                        self.logger.info(f"Loaded function '{func_name}'")
+                        self.logger.info(f"Loaded nhits model: '{func_name}'")
                     self.trained = True
             case "linear":
-                pass
+                self.linearmdl = LinearModel(60)
+                # try loading models
+                succ, loaded_func_names = self.linearmdl.load_model()
+                if succ:  
+                    for func_name in loaded_func_names:
+                        self.models[func_name] = self.linearmdl
+                        self.logger.info(f"Loaded linear model: '{func_name}'")
+                    self.trained = True
             case "historical":
                 pass
             case "default":
@@ -59,10 +67,17 @@ class ScalePredictor:
                     return False
                 for func_name in trained_func_names:
                     self.models[func_name] = self.nhitsmdl
-                    self.logger.info(f"Trained function '{func_name}'")
+                    self.logger.info(f"Trained nhits model: function '{func_name}'")
                 self.trained = True
                 return True
             case "linear":
+                succ, trained_func_names = self.linearmdl.train_from_file(path, window_size)
+                if not succ:
+                    return False
+                for func_name in trained_func_names:
+                    self.models[func_name] = self.linearmdl
+                    self.logger.info(f"Trained linear model: function '{func_name}'")
+                self.trained = True
                 return True
             case "historical":
                 return True
@@ -122,18 +137,26 @@ class ScalePredictor:
         self.logger.info(f"function name: '{function_name}'   func_index={func_index}   model_selector={self.model_selector}")
         if func_index is None:
             self.logger.warning(f"Invalid function name '{function_name}', use default window_average.")
-            predicted_next = window_average(index, window)
+            predicted_next = utils.window_average(index, window)
+            self.logger.info(f"predicted pod count = {predicted_next}")
+            self.logger.debug("predict returns")
+            if predicted_next < 0:
+                return 0
             return predicted_next
         if not self.trained or func_index not in self.models:
             self.logger.warning(f"No trained model found for function '{function_name}', use default window_average.")
-            predicted_next = window_average(index, window)
+            predicted_next = utils.window_average(index, window)
+            self.logger.info(f"predicted pod count = {predicted_next}")
+            self.logger.debug("predict returns")
+            if predicted_next < 0:
+                return 0
             return predicted_next
 
         # Auto-choose model
         model = self.models[func_index]
 
         # Rearrange the windows according to the index to ensure order. Spin and split window.
-        sequenced_window = window[index+1:] + window[:index+1]
+        sequenced_window = list(utils.trim_window(index, window))
 
         match self.model_selector:
             case "nhits":
@@ -141,10 +164,16 @@ class ScalePredictor:
                 # if failed, fall back to window_average
                 if not succ:
                     self.logger.warning(f"NHiTS predict failed for function '{function_name}', use default window_average.")
-                    predicted_next = window_average(index, window)
+                    predicted_next = utils.window_average(index, window)
+            case "linear":
+                succ, predicted_next = model.predict(func_index, sequenced_window)
+                # if failed, fall back to window_average
+                if not succ:
+                    self.logger.warning(f"Linear predict failed for function '{function_name}', use default window_average.")
+                    predicted_next = utils.window_average(index, window)
             case "default":
                 # Predict next second. Round up to an integer.
-                predicted_next = model.predict([sequenced_window])[0]
+                predicted_next = utils.window_average(index, window)
 
         self.logger.info(f"predicted pod count = {predicted_next}")
         self.logger.debug("predict returns")

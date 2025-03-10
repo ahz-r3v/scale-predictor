@@ -41,9 +41,9 @@ class TestScalePredictor(unittest.TestCase):
         predictor_instance.trained = True
         # 注意：predict 中正则提取 "trace-func-1" 得到 key "1"
         predictor_instance.models["1"] = DummyDefaultModel()
-        result = predictor_instance.predict("trace-func-1", [1, 2, 3, 4, 5], index=0)
-        # DummyDefaultModel 返回的预测值为 1+2+3+4+5 = 15
-        self.assertEqual(result, 15)
+        result = predictor_instance.predict("trace-func-1", [1.1, 2.2, 3.3, 4.4, 5.5], index=0)
+        # DummyDefaultModel 
+        self.assertEqual(result, 16.5)
 
     def test_predict_nhits(self):
         # 测试 nhits 模型分支
