@@ -14,7 +14,7 @@ class DummyModel:
 
 # 定义 dummy 的 train_one_model 方法，避免调用 neuralforecast 实际训练逻辑
 def dummy_train_one_model(self, func_name, train):
-    self.model[func_name] = DummyModel()
+    self.models[func_name] = DummyModel()
 
 class TestNHITSModel(unittest.TestCase):
     def setUp(self):
@@ -60,11 +60,11 @@ class TestNHITSModel(unittest.TestCase):
         self.assertEqual(set(trained_funcs), {"trace-func-1", "trace-func-2"})
         # 检查模型字典中是否添加了相应的键
         for func in trained_funcs:
-            self.assertIn(func, self.nhits_model.model)
+            self.assertIn(func, self.nhits_model.models)
 
     def test_predict(self):
         # 模拟训练完成，为 "trace-func-1" 赋予一个 DummyModel
-        self.nhits_model.model["trace-func-1"] = DummyModel()
+        self.nhits_model.models["trace-func-1"] = DummyModel()
         window_valid = [1, 2, 3, 4, 5]
         # 对已存在的函数调用 predict
         success, prediction = self.nhits_model.predict("trace-func-1", window_valid)

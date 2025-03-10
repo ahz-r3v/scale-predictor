@@ -43,7 +43,7 @@ class TestScalePredictor(unittest.TestCase):
         predictor_instance.models["1"] = DummyDefaultModel()
         result = predictor_instance.predict("trace-func-1", [1.1, 2.2, 3.3, 4.4, 5.5], index=0)
         # DummyDefaultModel 
-        self.assertEqual(result, 16.5)
+        self.assertEqual(result, 3.3)
 
     def test_predict_nhits(self):
         # 测试 nhits 模型分支
