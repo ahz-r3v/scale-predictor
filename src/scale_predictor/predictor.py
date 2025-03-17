@@ -9,6 +9,7 @@ import re
 import src.scale_predictor.utils as utils
 from src.scale_predictor.nhits import NHITSModel
 from src.scale_predictor.linear import LinearModel
+import csv
 
 class ScalePredictor:
     """
@@ -32,6 +33,7 @@ class ScalePredictor:
         self.model_selector = model_selector
         self.smoothing_coeff = 0.6
         self.logger = logging.getLogger(__name__)
+        self.last_window_values: Dict[str, float] = {}
         self.nhitsmdl = None
         self.linearmdl = None
         match self.model_selector:
@@ -157,6 +159,11 @@ class ScalePredictor:
 
         # Rearrange the windows according to the index to ensure order. Spin and split window.
         sequenced_window = list(utils.trim_window(index, window))
+        last_window_value = self.last_window_values[func_index] if func_index in self.last_window_values else 0
+        self.logger.debug(f"sequenced_window = {sequenced_window}")
+        self.logger.debug(f"last_window_value = {last_window_value}")
+        # Update last window value
+        self.last_window_values[func_index] = sequenced_window[-1]
 
         match self.model_selector:
             case "nhits":
@@ -175,7 +182,11 @@ class ScalePredictor:
                 # Predict next second. Round up to an integer.
                 predicted_next = utils.window_average(index, window)
 
-        self.logger.info(f"predicted pod count = {predicted_next}")
+        self.logger.info(f"for func {func_index} predicted pod count = {predicted_next}")
+        self.logger.debug(f"last window value = {self.last_window_values[func_index]}")
+        csv_output_path = "scale_predictor_output.csv" 
+        self.log_prediction_to_csv(csv_output_path, func_index, last_window_value, predicted_next)
+
         self.logger.debug("predict returns")
 
         if predicted_next < 0:
@@ -231,3 +242,11 @@ class ScalePredictor:
         self.window_size = data.get('window_size', 0)
 
         print(f"ScalePredictor state loaded from {file_path}")
+
+    def log_prediction_to_csv(self, csv_path: str, func_index: str, last_value: float, predicted_value: float):
+        file_exists = os.path.isfile(csv_path)
+        with open(csv_path, mode='a', newline='') as csvfile:
+            writer = csv.writer(csvfile)
+            if not file_exists:
+                writer.writerow(['func_index', 'last_window_value', 'predicted_value', 'model'])
+            writer.writerow([func_index, last_value, predicted_value, self.model_selector])

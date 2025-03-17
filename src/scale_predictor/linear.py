@@ -130,5 +130,22 @@ class LinearModel:
         self.logger.info(f"Linear Regression model trained successfully! Function name= {func_name}")
         self.save_model(func_name)
 
-    def predict(self, X):
-        return self.models.predict(X)
+    def predict(self, func_name, window):
+        if self.models is None or self.window_size is None:
+            self.logger.warning("linear predict fail: no model found!")
+            return False, 0
+        
+        if func_name not in self.models:
+            self.logger.warning(f"linear predict fail: no model found for function {func_name}")
+            return False, 0
+
+        if len(window) != self.window_size:
+            self.logger.error(f"linear predict fail: input window length should equals to window_size:{self.window_size}, but got {len(window)}")
+            return False, 0
+
+        with self.locks[func_name]:
+            model = self.models[func_name]
+            prediction = model.predict([window])
+        pid = os.getpid()
+        self.logger.info(f"[PID: {pid}] linear predict success: function {func_name}, prediction={prediction[0]}")
+        return True, prediction[0]
