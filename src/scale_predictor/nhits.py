@@ -84,19 +84,26 @@ class NHITSModel:
 
             train = pd.concat([train, sub_df[sub_df['timestamp'] < unique_timestamps[train_size]]], ignore_index=True)
             test = pd.concat([test, sub_df[sub_df['timestamp'] >= unique_timestamps[train_size]]], ignore_index=True)
+            
+            # use later 50% data to train:
+            train_size = int(0.5 * len(unique_timestamps))
+            train_latter_half = pd.concat([train, sub_df[sub_df['timestamp'] >= unique_timestamps[train_size]]], ignore_index=True)
+
 
         self.logger.info(f"train set size: {train.shape}")
         self.logger.info(f"test set size: {test.shape}")
 
         train.to_csv(train_set_filename, index=False)
         test.to_csv(test_set_filename, index=False)
+        train_latter_half.to_csv('data/train_latter_half.csv', index=False)
 
         self.logger.info(f"generate_dataframe successfully!")
         return train, test
 
     # returns (success: bool, trained_func_index)
     def train_from_file(self, filepath: str, window_size: int) -> (bool, List[str]):
-        train_set_filename = 'data/train.csv'
+        # train_set_filename = 'data/train.csv'
+        train_set_filename = 'data/train_latter_half.csv'
         test_set_filename = 'data/test.csv'
         self.window_size = window_size
 

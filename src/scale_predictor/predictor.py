@@ -183,7 +183,7 @@ class ScalePredictor:
                 predicted_next = utils.window_average(index, window)
 
         self.logger.info(f"for func {func_index} predicted pod count = {predicted_next}")
-        self.logger.debug(f"last window value = {self.last_window_values[func_index]}")
+        self.logger.info(f"last window value = {self.last_window_values[func_index]}")
         csv_output_path = "scale_predictor_output.csv" 
         self.log_prediction_to_csv(csv_output_path, func_index, last_window_value, predicted_next)
 
