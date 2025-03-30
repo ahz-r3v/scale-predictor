@@ -13,12 +13,14 @@ import logging
 
 if __name__ == "__main__":
     model_selector = os.getenv("PREDICTOR_MODEL", default='default')
+    log_level_str = os.getenv("LOG_LEVEL", default="INFO").upper()
+    log_level = getattr(logging, log_level_str, logging.INFO)
 
     logging.getLogger("pytorch_lightning").setLevel(logging.CRITICAL)
     logging.getLogger("lightning_fabric").setLevel(logging.CRITICAL)
 
     logging.basicConfig(
-        level=logging.DEBUG,
+        level=log_level,
         format="%(asctime)s - %(levelname)s - %(message)s",
         handlers=[
             logging.FileHandler("predictor.log"),

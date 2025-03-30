@@ -1,5 +1,6 @@
 import logging
 from typing import List
+import numpy as np
 
 def window_average(idx: int, buckets: list):
     """
@@ -53,3 +54,6 @@ def trim_window(idx: int, buckets: List[float]) -> List[float]:
         logger.warning(f"window may be outdated: received_idx={idx}, last_valid_idx={last_idx}")
     
     return ret_buckets
+
+def root_mean_squared_error(y_true, y_pred):
+    return np.sqrt(np.mean((np.array(y_true) - np.array(y_pred)) ** 2))

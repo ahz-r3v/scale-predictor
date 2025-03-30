@@ -1,8 +1,20 @@
 models/50/
+models/outdated
+test/outdated
 trace_analysis/
 train_client/
 tmp/
-data/**
+PBSscripts/
+data/
+lightning_logs/
 tests/
 
 scale_predictor_output.csv
+
+__pycache__/
+reminder/
+src/scale_predictor/__pycache__/
+
+*.tar
+*.tar.gz
+

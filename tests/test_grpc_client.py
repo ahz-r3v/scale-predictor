@@ -7,26 +7,21 @@ import time
 from src.scale_predictor import scale_predictor_pb2, scale_predictor_pb2_grpc, server
 from src.scale_predictor import predictor
 
-# 为避免依赖问题，简单实现 window_average 与 trim_window
 predictor.window_average = lambda index, window: sum(window) / len(window) if window else 0
 predictor.trim_window = lambda index, window: window
 
 class TestGRPCClient(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        # 使用测试端口50052启动 gRPC 服务器
         cls.port = 50052
         cls.server_thread = threading.Thread(target=server.serve, args=("default", cls.port), daemon=True)
         cls.server_thread.start()
-        # 等待服务器启动
         time.sleep(1)
         cls.address = f'localhost:{cls.port}'
 
     def test_predict_with_invalid_function(self):
         channel = grpc.insecure_channel(self.address)
         stub = scale_predictor_pb2_grpc.ScalePredictorStub(channel)
-
-        # 使用不符合正则 "trace-func-(\d+)" 的函数名，预测会走 window_average
         request = scale_predictor_pb2.PredictRequest(
             function_name="invalid_function",
             window=[1, 2, 3, 4, 5],
@@ -40,7 +35,6 @@ class TestGRPCClient(unittest.TestCase):
         channel = grpc.insecure_channel(self.address)
         stub = scale_predictor_pb2_grpc.ScalePredictorStub(channel)
 
-        # 使用符合正则的函数名，但服务未训练，因此依然调用 window_average fallback
         request = scale_predictor_pb2.PredictRequest(
             function_name="trace-func-1",
             window=[2, 3, 4, 5, 6],

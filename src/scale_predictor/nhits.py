@@ -1,17 +1,27 @@
 import pandas as pd
-import pickle
+import time
 import logging
 import os
 import shutil
-import threading
 from collections import defaultdict
 from typing import Dict, List, Any
 from datetime import datetime, timedelta, date
-from neuralforecast.models import NHITS
-from neuralforecast import NeuralForecast
-from neuralforecast.utils import AirPassengersDF
-from neuralforecast.losses.pytorch import MAE
-from sklearn.metrics import mean_absolute_error, mean_absolute_percentage_error
+from darts import TimeSeries
+from darts.models import NHiTSModel
+from darts.dataprocessing.transformers import Scaler
+from darts.metrics import rmse
+import polars as pl
+
+
+from src.scale_predictor.inverse_loss import LogMSEPenalizeLoss
+from pytorch_lightning.callbacks.early_stopping import EarlyStopping
+
+early_stopping = EarlyStopping(
+    monitor="val_loss", 
+    patience=10,
+    mode="min", 
+    verbose=True,
+)
 
 class NHITSModel:
     def __init__(self, window_size):
@@ -19,18 +29,22 @@ class NHITSModel:
         self.window_size = window_size
         self.output_path = 'data/'
         self.model_path = 'models/' 
+        self.cutoff = 0.02
         os.makedirs(self.model_path, exist_ok=True) 
         self.logger = logging.getLogger(__name__)
-        self.locks = defaultdict(threading.Lock)
+        # from 1970-01-01 01:00:00
+        mod_time = datetime(1970, 1, 1, 1, 0, 0)
+        mod_time_pd = pd.Timestamp(mod_time)
+        self.ds_series = pd.date_range(start=mod_time_pd, periods=self.window_size, freq='s')
 
 
     def save_model(self, func_name):
-        with self.locks[func_name]:
-            if func_name in self.models:
-                model_filename = os.path.join(self.model_path, f"{func_name}.pkl")
-                with open(model_filename, "wb") as f:
-                    pickle.dump(self.models[func_name], f)
-                self.logger.info(f"Model for function '{func_name}' saved successfully!")
+        if func_name in self.models:
+            model_filename = os.path.join(self.model_path, f"{func_name}.pkl")
+            # with open(model_filename, "wb") as f:
+            #     pickle.dump(self.models[func_name], f)
+            self.models[func_name].save(model_filename)
+            self.logger.info(f"Model for function '{func_name}' saved successfully!")
 
     def load_model(self) -> (bool, List[str]):
         if not os.path.exists(self.model_path):
@@ -43,104 +57,227 @@ class NHITSModel:
             if filename.endswith(".pkl"):
                 func_name = filename.replace(".pkl", "")
                 model_filename = os.path.join(self.model_path, filename)
-                with open(model_filename, "rb") as f:
-                    self.models[func_name] = pickle.load(f)
+                model = NHiTSModel.load(model_filename, map_location="cpu", pl_trainer_kwargs={"accelerator": "cpu", "logger": False})
+                model.model.to("cpu")
+                assert isinstance(model, NHiTSModel), "Loaded object is not a NHiTSModel!"
+                self.models[func_name] = model
                 self.logger.info(f"Model for function '{func_name}' loaded successfully!")
         return True, list(self.models.keys())
 
+    def evaluate_model_batching(self, model_name, test_set_filename):
+        test_df = pl.read_csv(test_set_filename)
+        trained_func_index = test_df['unique_id'].unique().to_list()
 
-    def generate_dataframe(self, file_path, train_set_filename, test_set_filename):
-        self.logger.info(f"generate_dataframe: file_path={file_path}, train_set_filename={train_set_filename}, test_set_filename={test_set_filename}")
-        df = pd.read_csv(file_path, names=['timestamp', 'function', 'cpu'], dtype={'timestamp': int, 'function': str, 'cpu': float}, skiprows=1)
+        print("Start evaluating model accuracy on test set...")
+        accuracy_log = []
+        test_series_list = []
+        
+        for func_name in trained_func_index:
+            df_func_test = test_df.filter(pl.col("unique_id") == func_name)
+            if df_func_test.height < self.window_size:
+                print(df_func_test)
+                continue
 
-        # trim timestamps to [min_time, max_time]
-        min_time = df['timestamp'].min()
-        max_time = df['timestamp'].max()
-        all_timestamps = pd.DataFrame({'timestamp': range(min_time, max_time + 1)})
+            df_func_pd = df_func_test.to_pandas()
+            ts_test = TimeSeries.from_dataframe(df_func_pd, time_col='ds', value_cols='y')
+            # ts_test = ts_test[:-21]
 
-        unique_ids = df['function'].unique()
-        full_data = pd.DataFrame()
+            test_series_list.append((func_name, ts_test))
 
-        for uid in unique_ids:
-            sub_df = df[df['function'] == uid]
-            uid_timestamps = all_timestamps.copy()
-            uid_timestamps['function'] = uid 
-            # fill missing 'cpu' to 0
-            merged_df = uid_timestamps.merge(sub_df, on=['timestamp', 'function'], how='left').fillna({'cpu': 0})
-            full_data = pd.concat([full_data, merged_df], ignore_index=True)
+        print(trained_func_index)
 
-        full_data = full_data.sort_values(['function', 'timestamp']).reset_index(drop=True)
-        full_data.rename(columns={'function': 'unique_id', 'cpu': 'y'}, inplace=True)
-        full_data['ds'] = pd.to_datetime(full_data['timestamp'], unit='s')
-
-        # 80% train, 20% test
-        train = pd.DataFrame()
-        test = pd.DataFrame()
-
-        for uid in unique_ids:
-            sub_df = full_data[full_data['unique_id'] == uid]
-            unique_timestamps = sub_df['timestamp'].unique()
-            train_size = int(0.8 * len(unique_timestamps))
-
-            train = pd.concat([train, sub_df[sub_df['timestamp'] < unique_timestamps[train_size]]], ignore_index=True)
-            test = pd.concat([test, sub_df[sub_df['timestamp'] >= unique_timestamps[train_size]]], ignore_index=True)
+        accuracy_log = []
+        total_predict_times = []
+        pred_list = {}
+        for func_name, ts_test in test_series_list:
+            predictions = []
+            elapsed_time = 0
+            for i in range(30):
+                try:
+                    start_time = time.perf_counter()
+                    forecast = self.models[model_name].predict(n=10, series=ts_test[3+(i*10):603+(i*10)], verbose=False)
+                    end_time = time.perf_counter()
+                    elapsed_time += (end_time - start_time) * 1000  # to ms
+                    # print(forecast.values())
+                    predictions.extend(forecast.values().flatten())
+                except Exception as e:
+                    print(f"Function {func_name} evaluation failed: {e}")
             
-            # use later 50% data to train:
-            train_size = int(0.5 * len(unique_timestamps))
-            train_latter_half = pd.concat([train, sub_df[sub_df['timestamp'] >= unique_timestamps[train_size]]], ignore_index=True)
+            test_slice = ts_test[603:903]
+            time_index = test_slice.time_index
+            df_pred = pd.DataFrame({'value': predictions}, index=time_index)
+            pred_list[func_name] = predictions
+            pred_ts = TimeSeries.from_dataframe(df_pred)
+            score = rmse(ts_test[603:903], pred_ts)
+            accuracy_log.append((func_name, score))
+            print(f"Function {func_name} RMSE: {score:.2f} inference_time: {elapsed_time/100:.4f} ms")
+            total_predict_times.append(elapsed_time/100)
 
+        if accuracy_log:
+            avg_rmse = sum([score for _, score in accuracy_log]) / len(accuracy_log)
+            avg_inference_time = sum(total_predict_times) / len(total_predict_times)
+            print(f"Average RMSE over {len(accuracy_log)} functions: {avg_rmse:.2f}")
+            print(f"max RMSE: {max([score for _, score in accuracy_log])}")
+            print(f"Average inference time: {avg_inference_time:.4f} ms")
+        else:
+            print("No functions evaluated successfully.")
 
-        self.logger.info(f"train set size: {train.shape}")
-        self.logger.info(f"test set size: {test.shape}")
+        import matplotlib.pyplot as plt
+        for func_name, ts_test in test_series_list:
+            try:
+                forecast_values = pred_list[func_name]
+                true_values = ts_test[603:903].values()
+                # forecast_values = forecast.values()
+                plt.figure(figsize=(10, 4))
+                plt.plot(true_values, label="True")
+                plt.plot(forecast_values, label="Forecast")
+                plt.title(f"Function {func_name} Prediction vs True")
+                plt.xlabel("Time Index")
+                plt.ylabel("Value")
+                plt.legend()
+                plt.grid(True)
+                plt.show()
+                plt.savefig(f"tmp/{model_name} {func_name} output.png")
+            except Exception as e:
+                print(f"Function {func_name} plot failed: {e}")
 
-        train.to_csv(train_set_filename, index=False)
-        test.to_csv(test_set_filename, index=False)
-        train_latter_half.to_csv('data/train_latter_half.csv', index=False)
+    def evaluate_model(self, model_name, test_set_filename):
+        test_df = pl.read_csv(test_set_filename)
+        trained_func_index = test_df['unique_id'].unique().to_list()
 
-        self.logger.info(f"generate_dataframe successfully!")
-        return train, test
+        self.logger.info("Start evaluating model accuracy on test set...")
+        accuracy_log = []
+        test_series_list = []
+        
+        for func_name in trained_func_index:
+            df_func_test = test_df.filter(pl.col("unique_id") == func_name)
+            if df_func_test.height < self.window_size:
+                print(df_func_test)
+                continue
+
+            df_func_pd = df_func_test.to_pandas()
+            ts_test = TimeSeries.from_dataframe(df_func_test, time_col='ds', value_cols='y')
+            ts_test = ts_test[:-21]
+
+            test_series_list.append((func_name, ts_test))
+
+        print(trained_func_index)
+
+        accuracy_log = []
+        total_predict_times = []
+        for func_name, ts_test in test_series_list:
+            predictions = []
+            elapsed_time = 0
+            for i in range(100):
+                try:
+                    start_time = time.perf_counter()
+                    forecast = self.models[model_name].predict(n=5, series=ts_test[0+i:600+i], verbose=False)
+                    end_time = time.perf_counter()
+                    elapsed_time += (end_time - start_time) * 1000  # to ms
+                    
+                    prediction = forecast.values()[0][0]
+                    predictions.append(prediction)
+                except Exception as e:
+                    self.logger.warning(f"Function {func_name} evaluation failed: {e}")
+            
+            test_slice = ts_test[600:700]
+            time_index = test_slice.time_index
+            df_pred = pd.DataFrame({'value': predictions}, index=time_index)
+            pred_ts = TimeSeries.from_dataframe(df_pred)
+            score = rmse(ts_test[600:700], pred_ts)
+            accuracy_log.append((func_name, score))
+            print(f"Function {func_name} RMSE: {score:.2f} inference_time: {elapsed_time/100:.4f} ms")
+            total_predict_times.append(elapsed_time/100)
+
+        if accuracy_log:
+            avg_rmse = sum([score for _, score in accuracy_log]) / len(accuracy_log)
+            avg_inference_time = sum(total_predict_times) / len(total_predict_times)
+            print(f"Average RMSE over {len(accuracy_log)} functions: {avg_rmse:.2f}")
+            print(f"max RMSE: {max([score for _, score in accuracy_log])}")
+            print(f"Average inference time: {avg_inference_time:.4f} ms")
+        else:
+            self.logger.warning("No functions evaluated successfully.")
 
     # returns (success: bool, trained_func_index)
-    def train_from_file(self, filepath: str, window_size: int) -> (bool, List[str]):
-        # train_set_filename = 'data/train.csv'
-        train_set_filename = 'data/train_latter_half.csv'
-        test_set_filename = 'data/test.csv'
-        self.window_size = window_size
+    def train_from_file(self, train_set_filename: str, val_set_filename: str, window_size: int) -> (bool, List[str]):
+            self.window_size = window_size
 
-        self.generate_dataframe(filepath, train_set_filename, test_set_filename)
-        train = pd.read_csv(train_set_filename)
-        train['ds'] = pd.to_datetime(train['ds'])
+            train_df = pd.read_csv(train_set_filename)
+            train_df['ds'] = pd.to_datetime(train_df['ds'])
+            val_df = pd.read_csv(val_set_filename)
+            val_df['ds'] = pd.to_datetime(val_df['ds'])
 
-        required_columns = {'unique_id', 'ds', 'y'}
-        assert required_columns.issubset(train.columns)
+            required_columns = {'unique_id', 'ds', 'y'}
+            assert required_columns.issubset(train_df.columns)
+            assert required_columns.issubset(val_df.columns)
 
-        trained_func_index = unique_ids = train["unique_id"].astype(str).unique()
-        func_num = len(trained_func_index)
+            trained_func_index = train_df["unique_id"].astype(str).unique()
+            func_num = len(trained_func_index)
 
-        self.logger.info(f"NHITS model start training! Function total num= {func_num}")
+            print(f"NHITS model start training! Function total num= {func_num}")
 
-        for func_name in trained_func_index:
-            func_data = train[train["unique_id"].astype(str) == func_name]
-            self.train_one_model(func_name, func_data)
+            train_series_list = []
+            val_series_list = []
 
-        self.logger.info(f"NHITS model trained succesfully! Function total num= {func_num}")
+            for func_name in trained_func_index:
+                df_train_func = train_df[train_df["unique_id"].astype(str) == func_name].copy()
+                df_val_func = val_df[val_df["unique_id"].astype(str) == func_name].copy()
+                # instruction of Darts TimeSeries
+                if len(df_train_func) < window_size or len(df_val_func) < 10:
+                    print(f"[Skipping] Not enough data for function {func_name}")
+                    continue
+                
+                ts_train = TimeSeries.from_dataframe(df_train_func, time_col='ds', value_cols='y', freq='s')
+                ts_val = TimeSeries.from_dataframe(df_val_func, time_col='ds', value_cols='y', freq='s')
 
-        log_dir = "lightning_logs"
-        if os.path.exists(log_dir):
-            shutil.rmtree(log_dir)
-        return True, trained_func_index
-    
-    def train_one_model(self, func_name, train):
-        self.logger.info(f"NHITS model start training! Function name= {func_name}")
-        model = NHITS(h=1, input_size=self.window_size, loss=MAE(), max_steps=100)
-        nf = NeuralForecast(models=[model], freq='s')
-        nf.fit(train)
+                train_series_list.append(ts_train)
+                val_series_list.append(ts_val)
 
-        with self.locks[func_name]:
-            self.models[func_name] = nf
+            if not train_series_list:
+                print("No valid series to train.")
+                return False, []
 
-        self.logger.info(f"NHITS model trained succesfully! Function name= {func_name}")
-        self.save_model(func_name)
+            self.train_global_model(train_series_list, val_series_list)
+
+            print(f"NHITS model trained succesfully! Function total num= {func_num}")
+                    
+            return True, ['global',]
+
+    def train_global_model(self, train_series_list, val_series_list=None):
+        print(f"NHITS model start training! Function name= global")
+
+        custom_loss = LogMSEPenalizeLoss(a=10, np=2.0, up=1.2)
+
+        model = NHiTSModel(
+            input_chunk_length=self.window_size,
+            output_chunk_length=10, # output = 10
+            n_epochs=50,
+            random_state=42,
+            dropout=0.1,
+            optimizer_kwargs={'weight_decay': 1e-5},
+            batch_size=128,
+            pl_trainer_kwargs={
+                'accelerator': 'gpu',
+                'enable_progress_bar': False,
+                'logger': True,
+                'callbacks': [early_stopping]
+            },
+            num_stacks=3,    
+            num_blocks=2,   
+            num_layers=2,
+            layer_widths=512,
+
+            loss_fn=custom_loss
+        )
+
+        if val_series_list:
+            model.fit(train_series_list, val_series=val_series_list, verbose=True)
+        else:
+            model.fit(train_series_list, verbose=True)
+
+        self.models['global'] = model
+        print(f"NHITS model trained succesfully! Function name= global")
+        self.save_model("global")
 
 
     def predict(self, func_name, window):
@@ -148,34 +285,40 @@ class NHITSModel:
             self.logger.warning("nhits predict fail: no model found!")
             return False, 0
         
-        if func_name not in self.models:
-            self.logger.warning(f"nhits predict fail: no model found for function {func_name}")
-            return False, 0
+        # if func_name not in self.models:
+        #     self.logger.warning(f"nhits predict fail: no model found for function {func_name}")
+        #     return False, 0
 
         if len(window) != self.window_size:
             self.logger.error(f"nhits predict fail: input window length should equals to window_size:{self.window_size}, but got {len(window)}")
             return False, 0
 
         # only take now().minute and now().second
-        now = datetime.now()
-        mod_now = now.minute * 60 + now.second
-        mod_time = datetime(1970, 1, 1) + timedelta(seconds=mod_now)
-        mod_time_pd = pd.Timestamp(mod_time)
-        ds_series = pd.date_range(end=mod_time_pd, periods=len(window), freq='s')
+        # ds_series = self.ds_series
 
-        # 构造 DataFrame
-        input_df = pd.DataFrame({
-            'unique_id': [func_name] * len(window),
-            'ds': ds_series,
-            'y': window
-        })
-
-        with self.locks[func_name]:
-            model = self.models[func_name]
-            forecast = model.predict(input_df)
+        # input_df = pd.DataFrame({
+        #     'unique_id': [func_name] * len(window),
+        #     'ds': ds_series,
+        #     'y': window
+        # })
+        start_time = time.perf_counter() 
+        series = TimeSeries.from_series(pd.Series(window, index=self.ds_series))
+        # with self.lock:
+            # model = self.models[func_name]
+            # forecast = model.predict(input_df)
+        forecast = self.models['global_mixed_loss'].predict(n=10, series=series, verbose=False)
+        elapsed_time_ms = (time.perf_counter() - start_time) * 1000  # ms
         pid = os.getpid()
-        self.logger.info(f"[PID: {pid}] nhits predict successfully!")
-        return True, forecast.iloc[0]['NHITS']
+        self.logger.info(f"[PID: {pid}] nhits predict success: function {func_name}, prediction={forecast.values()[0][0]}, elapsed_time={elapsed_time_ms} ms")
+        # result equals to the largest predicted value in the following 10s
+        result =  max(forecast.values()[0])
+        # deal with randomness
+        if result < self.cutoff:
+            result = 0
+        # if have concurrency, should not return 0
+        if window[-1] > 0.0 and result <= 0.0:
+            result = 1.0
+        return True, result
 
 
     

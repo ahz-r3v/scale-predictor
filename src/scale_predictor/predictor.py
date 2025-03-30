@@ -10,6 +10,7 @@ import src.scale_predictor.utils as utils
 from src.scale_predictor.nhits import NHITSModel
 from src.scale_predictor.linear import LinearModel
 import csv
+import time
 
 class ScalePredictor:
     """
@@ -33,32 +34,37 @@ class ScalePredictor:
         self.model_selector = model_selector
         self.smoothing_coeff = 0.6
         self.logger = logging.getLogger(__name__)
-        self.last_window_values: Dict[str, float] = {}
+        self.last_prediction: Dict[str, float] = {}
+        self.this_actual: float
         self.nhitsmdl = None
         self.linearmdl = None
         match self.model_selector:
             case "nhits":
-                self.nhitsmdl = NHITSModel(60)
+                self.nhitsmdl = NHITSModel(600)
                 # try loading models
                 succ, loaded_func_names = self.nhitsmdl.load_model()
                 if succ:
-                    for func_name in loaded_func_names:
-                        self.models[func_name] = self.nhitsmdl
-                        self.logger.info(f"Loaded nhits model: '{func_name}'")
+                    # for func_name in loaded_func_names:
+                    #     self.models[func_name] = self.nhitsmdl
+                    #     self.logger.info(f"Loaded nhits model: '{func_name}'")
+                    self.models['global'] = self.nhitsmdl
+                    self.logger.info(f"Loaded nhits model: 'global'")
                     self.trained = True
             case "linear":
-                self.linearmdl = LinearModel(60)
+                self.linearmdl = LinearModel(600)
                 # try loading models
                 succ, loaded_func_names = self.linearmdl.load_model()
                 if succ:  
-                    for func_name in loaded_func_names:
-                        self.models[func_name] = self.linearmdl
-                        self.logger.info(f"Loaded linear model: '{func_name}'")
+                    # for func_name in loaded_func_names:
+                    #     self.models[func_name] = self.linearmdl
+                    #     self.logger.info(f"Loaded linear model: '{func_name}'")
+                    self.models['global'] = self.linearmdl
+                    self.logger.info(f"Loaded linear model: 'global'")
                     self.trained = True
             case "historical":
                 pass
             case "default":
-                pass
+                self.models['global'] = "default window average"
 
     def train_by_file(self, path: str, window_size: int):
         self.window_size = window_size
@@ -145,25 +151,31 @@ class ScalePredictor:
             if predicted_next < 0:
                 return 0
             return predicted_next
-        if not self.trained or func_index not in self.models:
-            self.logger.warning(f"No trained model found for function '{function_name}', use default window_average.")
-            predicted_next = utils.window_average(index, window)
-            self.logger.info(f"predicted pod count = {predicted_next}")
-            self.logger.debug("predict returns")
-            if predicted_next < 0:
-                return 0
-            return predicted_next
-
-        # Auto-choose model
-        model = self.models[func_index]
 
         # Rearrange the windows according to the index to ensure order. Spin and split window.
         sequenced_window = list(utils.trim_window(index, window))
-        last_window_value = self.last_window_values[func_index] if func_index in self.last_window_values else 0
+        last_prediction = self.last_prediction[func_index] if func_index in self.last_prediction else 0
+        self.this_actual = sequenced_window[-1]
         self.logger.debug(f"sequenced_window = {sequenced_window}")
-        self.logger.debug(f"last_window_value = {last_window_value}")
-        # Update last window value
-        self.last_window_values[func_index] = sequenced_window[-1]
+        self.logger.debug(f"last_prediction = {last_prediction}, this_actual = {self.this_actual}")
+        # Update actual value
+        
+
+        # # If not trained, or no model for the function, or window size is 0, use window_average.
+        # if not self.trained or func_index not in self.models:
+        #     self.logger.warning(f"No trained model found for function '{function_name}', use default window_average.")
+        #     predicted_next = utils.window_average(index, window)
+        #     self.logger.info(f"for func {func_index} predicted pod count = {predicted_next}")
+        #     self.logger.info(f"last window value = {self.last_window_values[func_index]}")
+        #     csv_output_path = "scale_predictor_output.csv" 
+        #     self.log_prediction_to_csv(csv_output_path, func_index, last_window_value, predicted_next)
+        #     self.logger.debug("predict returns")
+        #     if predicted_next < 0:
+        #         return 0
+        #     return predicted_next
+        
+        # Auto-choose model
+        model = self.models['global']
 
         match self.model_selector:
             case "nhits":
@@ -180,13 +192,17 @@ class ScalePredictor:
                     predicted_next = utils.window_average(index, window)
             case "default":
                 # Predict next second. Round up to an integer.
+                start_time = time.perf_counter()
                 predicted_next = utils.window_average(index, window)
+                end_time = time.perf_counter()
+                elapsed_time = (end_time - start_time) * 1000  # to ms
+                self.logger.info(f"[PID: 0] default predict success: function {func_index}, prediction={predicted_next}, elapsed_time={elapsed_time} ms")
+    
 
         self.logger.info(f"for func {func_index} predicted pod count = {predicted_next}")
-        self.logger.info(f"last window value = {self.last_window_values[func_index]}")
-        csv_output_path = "scale_predictor_output.csv" 
-        self.log_prediction_to_csv(csv_output_path, func_index, last_window_value, predicted_next)
-
+        # csv_output_path = "scale_predictor_output.csv" 
+        # self.log_prediction_to_csv(csv_output_path, func_index, self.this_actual, last_prediction)
+        self.last_prediction[func_index] = predicted_next
         self.logger.debug("predict returns")
 
         if predicted_next < 0:
@@ -243,10 +259,10 @@ class ScalePredictor:
 
         print(f"ScalePredictor state loaded from {file_path}")
 
-    def log_prediction_to_csv(self, csv_path: str, func_index: str, last_value: float, predicted_value: float):
+    def log_prediction_to_csv(self, csv_path: str, func_index: str, this_actual: float, last_prediction: float):
         file_exists = os.path.isfile(csv_path)
         with open(csv_path, mode='a', newline='') as csvfile:
             writer = csv.writer(csvfile)
             if not file_exists:
-                writer.writerow(['func_index', 'last_window_value', 'predicted_value', 'model'])
-            writer.writerow([func_index, last_value, predicted_value, self.model_selector])
+                writer.writerow(['func_index', 'this_window_value', 'last_predicted_value', 'model'])
+            writer.writerow([func_index, this_actual, last_prediction, self.model_selector])

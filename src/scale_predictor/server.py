@@ -82,8 +82,12 @@ class ScalePredictorService(scale_predictor_pb2_grpc.ScalePredictorServicer):
             except Exception as e:
                 raise ValueError(f"Invalid CSV format: {str(e)}")
 
+            # generate dataframe
+            train_set_filename = 'data/train.csv'
+            test_set_filename = 'data/test.csv'
+            self.generate_dataframe(temp_file, train_set_filename, test_set_filename)
             # Train model
-            result = self.predictor.train_by_file(temp_file, window_size)
+            result = self.predictor.train_by_file(train_set_filename, window_size)
             if result:
                 self.logger.info(f"Training successful for {filename}")
                 return scale_predictor_pb2.TrainStatus(

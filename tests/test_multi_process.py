@@ -7,7 +7,7 @@ from concurrent import futures
 import src.scale_predictor.scale_predictor_pb2 as pb2
 import src.scale_predictor.scale_predictor_pb2_grpc as pb2_grpc
 
-from main import run_grpc_server, HOST, PORT, NUM_PROCESSES  # Import main functions
+from main import run_grpc_server, HOST, PORT, NUM_PROCESSES 
 
 class TestMultiProcessGRPCServer(unittest.TestCase):
     """Unit test for multi-process gRPC server with SO_REUSEPORT."""
@@ -17,14 +17,12 @@ class TestMultiProcessGRPCServer(unittest.TestCase):
         """Start multiple gRPC server processes before tests."""
         cls.model_selector = "default"
 
-        # Start multiple gRPC server processes
         cls.processes = []
         for _ in range(NUM_PROCESSES):
             p = multiprocessing.Process(target=run_grpc_server, args=(cls.model_selector,))
             p.start()
             cls.processes.append(p)
 
-        # Allow time for servers to initialize
         time.sleep(3)
 
     @classmethod
@@ -53,7 +51,6 @@ class TestMultiProcessGRPCServer(unittest.TestCase):
                 response = stub.Predict(request)
                 return response.result
 
-        # Run multiple requests in parallel
         with futures.ThreadPoolExecutor(max_workers=5) as executor:
             results = list(executor.map(lambda _: grpc_request(), range(num_requests)))
 
