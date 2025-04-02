@@ -1,6 +1,4 @@
-data/outdated/
-data/out/
-data/preprocessed/
+data/
 lightning_logs/
 trace_analysis/
 train_client/
@@ -13,6 +11,11 @@ PBSscripts/
 models/50/
 models/outdated
 tests/outdated/
+
+scripts/*.png
+scripts/lightning_logs/
+scripts/pic/
+scripts/outdated/
 
 
 

@@ -13,7 +13,7 @@ from darts.metrics import rmse
 import polars as pl
 
 
-from src.scale_predictor.inverse_loss import LogMSEPenalizeLoss
+from src.scale_predictor.inverse_loss import MAELogMSEPenalizeLoss
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 
 early_stopping = EarlyStopping(
@@ -246,7 +246,7 @@ class NHITSModel:
     def train_global_model(self, train_series_list, val_series_list=None):
         print(f"NHITS model start training! Function name= global")
 
-        custom_loss = LogMSEPenalizeLoss(a=10, np=2.0, up=1.2)
+        custom_loss = MAELogMSEPenalizeLoss(a=10, np=2.0, up=1.2)
 
         model = NHiTSModel(
             input_chunk_length=self.window_size,

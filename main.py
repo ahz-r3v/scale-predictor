@@ -29,7 +29,7 @@ if __name__ == "__main__":
     )
     logger = logging.getLogger(__name__)
 
-    logger.info("[VERSION] v0.1.3")
+    logger.info("[VERSION] v0.1.4: NHiTS-edo")
     if model_selector not in ["default", "linear", "historical", "nhits"]:
         logger.error(f"Invalid model selector: {model_selector}, using default model instead.")
         model_selector = "default"

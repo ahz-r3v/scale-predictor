@@ -1,0 +1,11 @@
+numpy>=1.26.4
+pandas>=2.2.3
+scikit-learn>=1.5.2 
+grpcio>=1.70.0
+grpcio-tools>=1.70.0
+joblib>=1.4.2
+grpcio-reflection>=1.70.0
+neuralforecast>=3.0.0
+darts>=0.34.0
+polars>=1.25.2
+torch>=2.6.0

@@ -36,6 +36,11 @@ class LogMSELoss(nn.Module):
     L = MSE + mean(log((|y_pred| + 1) / (y_true + 1)))^2)
     """
     def __init__(self, a=10.0, n=2.0):
+        """
+        :param base_weight: 整体 loss 缩放系数
+        :param neg_penalty: y_pred < 0 时的惩罚放大倍数
+        :param eps: 防止除以0的数值下限
+        """
         super().__init__()
         self.a = a
 
@@ -52,18 +57,37 @@ class LogMSELoss(nn.Module):
         # weighted_loss = loss_elementwise * weights
         # return self.a * weighted_loss.mean()
 
-class LogMSEPenalizeLoss(nn.Module):
+class MAELogMSEPenalizeLoss(nn.Module):
     """
-    L = MSE + mean(log((|y_pred| + 1) / (y_true + 1)))^2) + under_penalization + negetive_penalization
+    L = MAE + mean(log((|y_pred| + 1) / (y_true + 1)))^2) + under_penalization + negetive_penalization
     """
-    def __init__(self, a=10.0, np=2.0, up=1.2):
+    def __init__(self, a=10.0, np=2.0, up=2.0):
         super().__init__()
         self.a = a
         self.negative_factor = np
         self.under_factor = up
 
     def forward(self, y_pred: torch.Tensor, y_true: torch.Tensor) -> torch.Tensor:
-        mse = (y_pred - y_true).pow(2)
+        mae = torch.abs(y_pred - y_true)
+        loss_elementwise = (torch.log((torch.abs(y_pred) + 1) / (y_true + 1))).pow(2)
+        neg_mask = (y_pred < 0.0).float()
+        under_mask = (y_pred < y_true).float()
+        loss = 100 * (self.a  * loss_elementwise + mae)
+        weighted_loss = loss * (1.0 + (self.negative_factor - 1.0) * neg_mask) * (1.0 + (self.under_factor - 1.0) * under_mask)
+        return weighted_loss.mean()
+    
+class LogMSEPenalizeLoss(nn.Module):
+    """
+    L = MSE + mean(log((|y_pred| + 1) / (y_true + 1)))^2) + under_penalization + negetive_penalization
+    """
+    def __init__(self, a=10.0, np=2.0, up=2.0):
+        super().__init__()
+        self.a = a
+        self.negative_factor = np
+        self.under_factor = up
+
+    def forward(self, y_pred: torch.Tensor, y_true: torch.Tensor) -> torch.Tensor:
+        mse = torch.abs(y_pred - y_true).pwr(2)
         loss_elementwise = (torch.log((torch.abs(y_pred) + 1) / (y_true + 1))).pow(2)
         neg_mask = (y_pred < 0.0).float()
         under_mask = (y_pred < y_true).float()
