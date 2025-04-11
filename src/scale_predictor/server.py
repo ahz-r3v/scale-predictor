@@ -12,9 +12,9 @@ import src.scale_predictor.scale_predictor_pb2_grpc as scale_predictor_pb2_grpc
 from .predictor import ScalePredictor
 
 class ScalePredictorService(scale_predictor_pb2_grpc.ScalePredictorServicer):
-    def __init__(self, debug):
-        self.predictor = ScalePredictor(debug)
-        self.debug = debug
+    def __init__(self, model, cutoff_value):
+        self.predictor = ScalePredictor(model, cutoff_value)
+        self.model = model
         self.logger = logging.getLogger(__name__)
         self.data_dir = "./data"
         os.makedirs(self.data_dir, exist_ok=True)

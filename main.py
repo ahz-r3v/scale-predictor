@@ -15,6 +15,12 @@ if __name__ == "__main__":
     model_selector = os.getenv("PREDICTOR_MODEL", default='default')
     log_level_str = os.getenv("LOG_LEVEL", default="INFO").upper()
     log_level = getattr(logging, log_level_str, logging.INFO)
+    cutoff_string = os.getenv("CUT_OFF", "0.02")
+    try:
+        cutoff_value = float(cutoff_string)
+    except ValueError:
+        print(f"Invalid CUT_OFF value: {cutoff_string}. Using default 0.02.")
+        cutoff_value = 0.02
 
     logging.getLogger("pytorch_lightning").setLevel(logging.CRITICAL)
     logging.getLogger("lightning_fabric").setLevel(logging.CRITICAL)
@@ -23,13 +29,13 @@ if __name__ == "__main__":
         level=log_level,
         format="%(asctime)s - %(levelname)s - %(message)s",
         handlers=[
-            logging.FileHandler("predictor.log"),
+            # logging.FileHandler("predictor.log"),
             logging.StreamHandler()
         ]
     )
     logger = logging.getLogger(__name__)
 
-    logger.info("[VERSION] v0.1.4: NHiTS-edo")
+    logger.info("[VERSION] v0.1.6: Set outdated window buckets to -1...")
     if model_selector not in ["default", "linear", "historical", "nhits"]:
         logger.error(f"Invalid model selector: {model_selector}, using default model instead.")
         model_selector = "default"
@@ -37,7 +43,7 @@ if __name__ == "__main__":
 
     # Start grpc server
     grpc_server = grpc.server(futures.ThreadPoolExecutor(max_workers=4))
-    grpc_service = ScalePredictorService(model_selector)
+    grpc_service = ScalePredictorService(model_selector, cutoff_value)
     scale_predictor_pb2_grpc.add_ScalePredictorServicer_to_server(
         grpc_service,
         grpc_server

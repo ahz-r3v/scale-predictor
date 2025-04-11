@@ -9,17 +9,11 @@ class TestEvaluateWindowAverage(unittest.TestCase):
     def setUp(self):
         self.window_size = 600
         self.test_dir = os.path.dirname(__file__)
-        self.top10_train_path = os.path.join(self.test_dir, "testdata/top10.out")
-        self.top10_120_train_path = os.path.join(self.test_dir, "testdata/top10_120.out")
-        self.t400_trace_path = os.path.join(self.test_dir, "testdata/400.out")
-        self.t400_train_csv = os.path.join(self.test_dir, "testdata/400_train.csv")
-        self.full_trace_path = os.path.join(self.test_dir, "testdata/full.out")
-        self.full_test_csv = os.path.join(self.test_dir, "testdata/full_test.csv")
-        self.t400_test_csv = os.path.join(self.test_dir, "testdata/400_test.csv")
+        self.warm10_test = os.path.join(self.test_dir, "data/warm10_test.csv")
 
     def test_window_average(self):
         # evaluate model accuracy on test set
-        test_set_filename = self.full_test_csv
+        test_set_filename = self.warm10_test
         test_df = pl.read_csv(test_set_filename)
 
         trained_func_index = test_df['unique_id'].unique().to_list()

@@ -27,7 +27,7 @@ class ScalePredictor:
             Clean or reset the current predictive model.
     """
 
-    def __init__(self, model_selector):
+    def __init__(self, model_selector, cutoff_value):
         self.models: Dict[str, Any] = {}
         self.trained: bool = False
         self.window_size: int = 0
@@ -40,7 +40,7 @@ class ScalePredictor:
         self.linearmdl = None
         match self.model_selector:
             case "nhits":
-                self.nhitsmdl = NHITSModel(600)
+                self.nhitsmdl = NHITSModel(600, cutoff_value)
                 # try loading models
                 succ, loaded_func_names = self.nhitsmdl.load_model()
                 if succ:
@@ -51,7 +51,7 @@ class ScalePredictor:
                     self.logger.info(f"Loaded nhits model: 'global'")
                     self.trained = True
             case "linear":
-                self.linearmdl = LinearModel(600)
+                self.linearmdl = LinearModel(600, cutoff_value)
                 # try loading models
                 succ, loaded_func_names = self.linearmdl.load_model()
                 if succ:  
@@ -61,8 +61,6 @@ class ScalePredictor:
                     self.models['global'] = self.linearmdl
                     self.logger.info(f"Loaded linear model: 'global'")
                     self.trained = True
-            case "historical":
-                pass
             case "default":
                 self.models['global'] = "default window average"
 
@@ -136,7 +134,7 @@ class ScalePredictor:
             window (List[int]): Invocation data in the last minute (or any timespan).
         
         Returns:
-            int: The number of instances needed.
+            float: The number of instances needed.
         """
         self.logger.debug("predict called.")
         # If not trained, or no model for the function, or window size is 0, use window_average.
@@ -154,25 +152,11 @@ class ScalePredictor:
 
         # Rearrange the windows according to the index to ensure order. Spin and split window.
         sequenced_window = list(utils.trim_window(index, window))
-        last_prediction = self.last_prediction[func_index] if func_index in self.last_prediction else 0
-        self.this_actual = sequenced_window[-1]
+        # last_prediction = self.last_prediction[func_index] if func_index in self.last_prediction else 0
+        # self.this_actual = sequenced_window[-1]
         self.logger.debug(f"sequenced_window = {sequenced_window}")
-        self.logger.debug(f"last_prediction = {last_prediction}, this_actual = {self.this_actual}")
+        # self.logger.debug(f"last_prediction = {last_prediction}, this_actual = {self.this_actual}")
         # Update actual value
-        
-
-        # # If not trained, or no model for the function, or window size is 0, use window_average.
-        # if not self.trained or func_index not in self.models:
-        #     self.logger.warning(f"No trained model found for function '{function_name}', use default window_average.")
-        #     predicted_next = utils.window_average(index, window)
-        #     self.logger.info(f"for func {func_index} predicted pod count = {predicted_next}")
-        #     self.logger.info(f"last window value = {self.last_window_values[func_index]}")
-        #     csv_output_path = "scale_predictor_output.csv" 
-        #     self.log_prediction_to_csv(csv_output_path, func_index, last_window_value, predicted_next)
-        #     self.logger.debug("predict returns")
-        #     if predicted_next < 0:
-        #         return 0
-        #     return predicted_next
         
         # Auto-choose model
         model = self.models['global']
@@ -202,11 +186,11 @@ class ScalePredictor:
         self.logger.info(f"for func {func_index} predicted pod count = {predicted_next}")
         # csv_output_path = "scale_predictor_output.csv" 
         # self.log_prediction_to_csv(csv_output_path, func_index, self.this_actual, last_prediction)
-        self.last_prediction[func_index] = predicted_next
+        # self.last_prediction[func_index] = predicted_next
         self.logger.debug("predict returns")
 
         if predicted_next < 0:
-            return 0
+            return 0.
         
         return predicted_next
 

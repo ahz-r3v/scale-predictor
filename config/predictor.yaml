@@ -23,3 +23,5 @@ spec:
             value: 'default'
           - name: LOG_LEVEL
             value: 'INFO'
+          - name: CUT_OFF
+            value: '0.02'

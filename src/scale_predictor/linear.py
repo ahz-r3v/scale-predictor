@@ -13,12 +13,12 @@ import time
 # from src.scale_predictor.utils import root_mean_squared_error
 
 class LinearModel:
-    def __init__(self, window_size):
+    def __init__(self, window_size, cutoff_value):
         self.models: Dict[str, Any] = {}
         self.window_size = window_size
         self.model_path = 'models/'
         self.output_path = 'data/'
-        self.cutoff = 0.005
+        self.cutoff = cutoff_value
         os.makedirs(self.model_path, exist_ok=True) 
         self.logger = logging.getLogger(__name__)
         self.lock = threading.Lock()
